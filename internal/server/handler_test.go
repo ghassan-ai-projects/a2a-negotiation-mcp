@@ -15,6 +15,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
@@ -63,7 +64,13 @@ func setupTest(t *testing.T) *NegotiationServer {
 	}
 	heng := health.NewEngine(hstore2, logger)
 
-	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, heng, nil, nil, logger)
+	slastore, err := sla.NewStore(pstore.DB())
+	if err != nil {
+		t.Fatalf("sla.NewStore: %v", err)
+	}
+	slaEng := sla.NewEngine(slastore, logger)
+
+	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, heng, nil, slaEng, nil, logger)
 }
 
 func seedPricingData(t *testing.T, store *pricing.Store) {

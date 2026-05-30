@@ -20,6 +20,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -39,11 +40,12 @@ type NegotiationServer struct {
 	learningEng    *learning.Engine
 	healthEng      *health.Engine
         marketplaceEng *marketplace.Engine
-	slackClient *slack.Client
+	slaEng       *sla.Engine
+	slackClient  *slack.Client
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slackClient *slack.Client, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, slackClient *slack.Client, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -261,7 +263,37 @@ func (ns *NegotiationServer) registerTools() {
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_slack_status",
                 mcp.WithDescription("Check if Slack integration is configured and when the last alert was sent."),
         ), ns.handleSlackStatus)
+
+	// SLA Tools
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_add_sla",
+		mcp.WithDescription("Register an SLA contract with a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("service", mcp.Required(), mcp.Description("Service name")),
+		mcp.WithNumber("uptime_pct", mcp.Required(), mcp.Description("Guaranteed uptime percentage (e.g. 99.9)")),
+		mcp.WithNumber("credit_pct", mcp.Required(), mcp.Description("Service credit percentage (e.g. 10)")),
+		mcp.WithNumber("max_credit_pct", mcp.Required(), mcp.Description("Maximum credit percentage cap (e.g. 25)")),
+		mcp.WithNumber("monthly_spend", mcp.Required(), mcp.Description("Monthly spend amount")),
+	), ns.handleAddSLA)
+
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_record_breach",
+		mcp.WithDescription("Record an SLA breach for a vendor service."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("service", mcp.Required(), mcp.Description("Service name")),
+		mcp.WithString("date", mcp.Required(), mcp.Description("Breach date (RFC3339)")),
+		mcp.WithInteger("duration_mins", mcp.Required(), mcp.Description("Downtime duration in minutes")),
+	), ns.handleRecordBreach)
+
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_file_claim",
+		mcp.WithDescription("File an SLA breach claim for credit."),
+		mcp.WithString("breach_id", mcp.Required(), mcp.Description("Breach ID to file")),
+	), ns.handleFileClaim)
+
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_sla_report",
+		mcp.WithDescription("Get SLA report for a given month with all contracts, breaches, and credits."),
+		mcp.WithString("month", mcp.Required(), mcp.Description("Month (RFC3339 date, e.g. 2026-06-01T00:00:00Z)")),
+	), ns.handleSLAReport)
 }
+
 
 // ─── Tool Handlers ───
 
@@ -1429,3 +1461,124 @@ func (ns *NegotiationServer) handleHealthOverview(ctx context.Context, req mcp.C
 	return ns.jsonResult(resp)
 }
 
+
+// ─── SLA Handlers ───
+
+func (ns *NegotiationServer) handleAddSLA(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	service, _ := req.RequireString("service")
+	uptimePct := req.GetFloat("uptime_pct", 0)
+	creditPct := req.GetFloat("credit_pct", 0)
+	maxCreditPct := req.GetFloat("max_credit_pct", 0)
+	monthlySpend := req.GetFloat("monthly_spend", 0)
+
+	ns.logger.Debug("add_sla called", "vendor", vendor, "service", service)
+
+	contract, err := ns.slaEng.AddContract(ctx, vendor, service, uptimePct, creditPct, maxCreditPct, monthlySpend)
+	if err != nil {
+		ns.logger.Warn("add_sla failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to add SLA contract: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"sla_id":          contract.ID,
+		"vendor":          contract.Vendor,
+		"service":         contract.Service,
+		"uptime_pct":      contract.UptimePct,
+		"credit_pct":      contract.CreditPct,
+		"max_credit_pct":  contract.MaxCreditPct,
+		"monthly_spend":   contract.MonthlySpend,
+		"status":          contract.Status,
+		"duration_ms":     time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRecordBreach(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	service, _ := req.RequireString("service")
+	dateStr, _ := req.RequireString("date")
+	durationMins := int(req.GetInt("duration_mins", 0))
+
+	ns.logger.Debug("record_breach called", "vendor", vendor, "service", service, "duration_mins", durationMins)
+
+	date, err := time.Parse(time.RFC3339, dateStr)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid date: must be RFC3339 format (e.g. 2026-06-01T00:00:00Z)")), nil
+	}
+
+	breach, err := ns.slaEng.RecordBreach(ctx, vendor, service, date, durationMins)
+	if err != nil {
+		ns.logger.Warn("record_breach failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to record breach: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"breach_id":     breach.ID,
+		"vendor":        breach.Vendor,
+		"service":       breach.Service,
+		"date":          breach.Date.Format(time.RFC3339),
+		"duration_mins": breach.DurationMins,
+		"credit_due":    breach.CreditDue,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleFileClaim(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	breachID, _ := req.RequireString("breach_id")
+
+	ns.logger.Debug("file_claim called", "breach_id", breachID)
+
+	breach, err := ns.slaEng.FileClaim(ctx, breachID)
+	if err != nil {
+		ns.logger.Warn("file_claim failed", "breach_id", breachID, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to file claim: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"breach_id":   breach.ID,
+		"vendor":      breach.Vendor,
+		"service":     breach.Service,
+		"credit_due":  breach.CreditDue,
+		"filed":       breach.Filed,
+		"filed_at":    breach.FiledAt.Format(time.RFC3339),
+		"payout":      breach.Payout,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSLAReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	monthStr, _ := req.RequireString("month")
+
+	ns.logger.Debug("sla_report called", "month", monthStr)
+
+	month, err := time.Parse(time.RFC3339, monthStr)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid month: must be RFC3339 format (e.g. 2026-06-01T00:00:00Z)")), nil
+	}
+
+	report, err := ns.slaEng.GetReport(ctx, month)
+	if err != nil {
+		ns.logger.Warn("sla_report failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get SLA report: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"contract":      report.Contract,
+		"breaches":      report.Breaches,
+		"total_credits": report.TotalCredits,
+		"filed_count":   report.FiledCount,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
