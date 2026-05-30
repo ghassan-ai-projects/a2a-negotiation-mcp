@@ -23,6 +23,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -161,8 +162,16 @@ func main() {
 		logger.Info("slack integration enabled", "webhook", *slackWebhook)
 	}
 
+	// Initialize webhook engine
+	webhookStore, err := webhooks.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize webhook store", "error", err.Error())
+		os.Exit(1)
+	}
+	webhookEng := webhooks.NewEngine(webhookStore, logger)
+
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, slackClient, apiKeyStore, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, logger)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
