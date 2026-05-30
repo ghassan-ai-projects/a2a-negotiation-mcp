@@ -11,6 +11,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
@@ -50,6 +51,7 @@ type NegotiationServer struct {
         apiKeyStore  *a2a.APIKeyStore
         quoteEng     *quote.Engine
         contractEng  *contract.Engine
+        gamificationEng *gamification.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
@@ -133,6 +135,7 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Execute the multi-round negotiation loop for a session. Each round generates a counter-offer. Auto-approves if offer meets threshold."),
 		mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID from negotiate_create_session")),
 		mcp.WithNumber("auto_approve_threshold", mcp.Description("Auto-accept if offer is at or below this amount (optional)")),
+                mcp.WithString("user_id", mcp.Description("User identifier for gamification tracking (optional)")),
 	), ns.handleRunNegotiation)
 
 	// Tool 5: history
@@ -385,6 +388,25 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithInteger("limit", mcp.Description("Maximum number of vendors to return (optional, default all)")),
         ), ns.handleRankFlexibility)
 
+
+        // Tool 4x: negotiate_get_streak
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_streak",
+                mcp.WithDescription("Get gamification streak info for a user. Returns current streak, longest streak, total deals, and total savings."),
+                mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
+        ), ns.handleGetStreak)
+
+        // Tool 4y: negotiate_savings_leaderboard
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_savings_leaderboard",
+                mcp.WithDescription("Get the savings leaderboard. Returns top users ranked by total savings."),
+                mcp.WithInteger("limit", mcp.Description("Maximum number of entries to return (optional, default 10)")),
+        ), ns.handleSavingsLeaderboard)
+
+        // Tool 4z: negotiate_achievements
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_achievements",
+                mcp.WithDescription("Get all gamification badges and their earned status for a user."),
+                mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
+        ), ns.handleAchievements)
+
 }
 // ─── Tool Handlers ───
 
@@ -631,6 +653,31 @@ func (ns *NegotiationServer) handleRunNegotiation(ctx context.Context, req mcp.C
 		discountPct = 0
 	}
 	if err := ns.healthEng.UpdateReputation(ctx, session.Vendor, discountPct, succeeded); err != nil {
+
+        // Record gamification data after successful negotiation
+        if succeeded && ns.gamificationEng != nil {
+                userID := req.GetString("user_id", "anonymous")
+                savings := session.ListPrice - session.CurrentOffer
+                if savings < 0 {
+                        savings = 0
+                }
+                if err := ns.gamificationEng.RecordNegotiation(ctx, userID, savings); err != nil {
+                        ns.logger.Error("failed to record gamification", "user_id", userID, "error", err.Error())
+                } else {
+                        streak, _ := ns.gamificationEng.GetStreak(ctx, userID)
+                        awarded, bErr := ns.gamificationEng.CheckAndAwardBadges(ctx, userID, streak)
+                        if bErr != nil {
+                                ns.logger.Error("failed to check badges", "user_id", userID, "error", bErr.Error())
+                        } else if len(awarded) > 0 {
+                                var badgeIDs []string
+                                for _, b := range awarded {
+                                        badgeIDs = append(badgeIDs, b.ID)
+                                }
+                                ns.logger.Info("badges awarded", "user_id", userID, "badges", badgeIDs)
+                        }
+                }
+        }
+
 		ns.logger.Error("failed to update vendor reputation", "vendor", session.Vendor, "error", err.Error())
 	}
 
@@ -2165,3 +2212,78 @@ func (ns *NegotiationServer) handleParseAndCalendar(ctx context.Context, req mcp
         return ns.jsonResult(resp)
 }
 
+
+// ─── Gamification ───
+
+// SetGamificationEngine attaches the gamification engine for streak and badge tracking.
+func (ns *NegotiationServer) SetGamificationEngine(eng *gamification.Engine) {
+	ns.gamificationEng = eng
+}
+
+func (ns *NegotiationServer) handleGetStreak(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	userID, _ := req.RequireString("user_id")
+
+	ns.logger.Debug("get_streak called", "user_id", userID)
+
+	streak, err := ns.gamificationEng.GetStreak(ctx, userID)
+	if err != nil {
+		ns.logger.Warn("get_streak failed", "user_id", userID, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Get streak failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"user_id":             streak.UserID,
+		"current_streak":      streak.CurrentStreak,
+		"longest_streak":      streak.LongestStreak,
+		"last_negotiation_at": streak.LastNegotiationAt.Format(time.RFC3339),
+		"total_savings":       streak.TotalSavings,
+		"total_deals":         streak.TotalDeals,
+		"duration_ms":         time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSavingsLeaderboard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	limit := int(req.GetInt("limit", 10))
+
+	ns.logger.Debug("savings_leaderboard called", "limit", limit)
+
+	entries, err := ns.gamificationEng.GetLeaderboard(ctx, limit)
+	if err != nil {
+		ns.logger.Warn("savings_leaderboard failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Leaderboard query failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"leaderboard": entries,
+		"count":       len(entries),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAchievements(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	userID, _ := req.RequireString("user_id")
+
+	ns.logger.Debug("achievements called", "user_id", userID)
+
+	badges, err := ns.gamificationEng.GetBadges(ctx, userID)
+	if err != nil {
+		ns.logger.Warn("achievements failed", "user_id", userID, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Get achievements failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"user_id":    userID,
+		"badges":     badges,
+		"count":      len(badges),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}

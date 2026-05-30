@@ -14,6 +14,7 @@ import (
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
@@ -170,8 +171,19 @@ func main() {
 	}
 	webhookEng := webhooks.NewEngine(webhookStore, logger)
 
+
 	// Create MCP negotiation server
 	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, logger)
+
+        // Initialize gamification store and engine (for streaks, leaderboard, badges)
+        gamifStore, err := gamification.NewStore(pricingStore.DB())
+        if err != nil {
+                logger.Error("failed to initialize gamification store", "error", err.Error())
+                os.Exit(1)
+        }
+        gamifEng := gamification.New(gamifStore, logger)
+        negServer.SetGamificationEngine(gamifEng)
+
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
