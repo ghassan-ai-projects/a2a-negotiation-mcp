@@ -94,6 +94,15 @@ func (s *Store) migrate() error {
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_health_signals_vendor ON health_signals(vendor);
+
+	CREATE TABLE IF NOT EXISTS vendor_reputation (
+		vendor TEXT PRIMARY KEY,
+		deal_count INTEGER DEFAULT 0,
+		total_discount_pct REAL DEFAULT 0,
+		max_discount_pct REAL DEFAULT 0,
+		success_count INTEGER DEFAULT 0,
+		updated_at TEXT
+	);
 	`
 	_, err := s.db.Exec(schema)
 	return err
@@ -199,6 +208,68 @@ func (s *Store) ListAll(ctx context.Context) ([]VendorHealth, error) {
 		}
 		vh.Signals = signals
 		result = append(result, vh)
+	}
+	return result, rows.Err()
+}
+
+// ─── Reputation Store Methods ───
+
+// getReputationRow retrieves the raw reputation row for a vendor.
+// Returns nil, nil if the vendor has no reputation record.
+func (s *Store) getReputationRow(ctx context.Context, vendor string) (*reputationRow, error) {
+	var row reputationRow
+	err := s.db.QueryRowContext(ctx, `
+		SELECT vendor, deal_count, total_discount_pct, max_discount_pct, success_count, updated_at
+		FROM vendor_reputation WHERE vendor = ?
+	`, vendor).Scan(&row.Vendor, &row.DealCount, &row.TotalDiscountPct, &row.MaxDiscountPct, &row.SuccessCount, &row.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get reputation row: %w", err)
+	}
+	return &row, nil
+}
+
+// upsertReputation inserts or updates a vendor reputation row.
+func (s *Store) upsertReputation(ctx context.Context, row *reputationRow) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO vendor_reputation (vendor, deal_count, total_discount_pct, max_discount_pct, success_count, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(vendor) DO UPDATE SET
+			deal_count=excluded.deal_count,
+			total_discount_pct=excluded.total_discount_pct,
+			max_discount_pct=excluded.max_discount_pct,
+			success_count=excluded.success_count,
+			updated_at=excluded.updated_at
+	`, row.Vendor, row.DealCount, row.TotalDiscountPct, row.MaxDiscountPct, row.SuccessCount, row.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("upsert reputation: %w", err)
+	}
+	return nil
+}
+
+// listReputations returns all vendor reputation rows, up to limit (0 = no limit).
+func (s *Store) listReputations(ctx context.Context, limit int) ([]reputationRow, error) {
+	query := `SELECT vendor, deal_count, total_discount_pct, max_discount_pct, success_count, updated_at
+		FROM vendor_reputation ORDER BY total_discount_pct DESC`
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("list reputations: %w", err)
+	}
+	defer rows.Close()
+
+	var result []reputationRow
+	for rows.Next() {
+		var row reputationRow
+		if err := rows.Scan(&row.Vendor, &row.DealCount, &row.TotalDiscountPct, &row.MaxDiscountPct, &row.SuccessCount, &row.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan reputation: %w", err)
+		}
+		result = append(result, row)
 	}
 	return result, rows.Err()
 }

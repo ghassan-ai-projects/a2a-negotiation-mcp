@@ -86,6 +86,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		apiKeyStore:    apiKeyStore,
                 quoteEng:       quote.NewEngine(pricingStore, logger),
 		contractEng:    contract.NewEngine(calendarEngine, logger),
+                healthEng:      healthEngine,
+                slaEng:         slaEngine,
+                webhookEng:     webhookEng,
 	}
 
 	ns.registerTools()
@@ -223,7 +226,25 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Get global learning insights across all vendors — strategy performance breakdown and top vendors by deal count."),
 	), ns.handleLearningInsights)
 
-        // Tool 18: negotiate_list_unused_seats
+        // Tool 18: negotiate_failure_autopsy
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_failure_autopsy",
+                mcp.WithDescription("Get a detailed autopsy of why a negotiation failed — failure reason, final offer, vendor best offer, and gap."),
+                mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID to autopsy")),
+        ), ns.handleFailureAutopsy)
+
+        // Tool 19: negotiate_failure_patterns
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_failure_patterns",
+                mcp.WithDescription("Analyze failure patterns for a specific vendor — shows recurring failure reasons and suggested fixes."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to analyze")),
+        ), ns.handleFailurePatterns)
+
+        // Tool 20: negotiate_common_failures
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_common_failures",
+                mcp.WithDescription("Get the most common failure patterns across all vendors, ranked by frequency."),
+                mcp.WithInteger("limit", mcp.Description("Max number of patterns to return (default 10)")),
+        ), ns.handleCommonFailures)
+
+        // Tool 21: negotiate_list_unused_seats
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_unused_seats",
                 mcp.WithDescription("List unused SaaS seats for sale on the marketplace. Ask price must be below original list price."),
                 mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
@@ -235,7 +256,7 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithInteger("expires_in_hours", mcp.Description("Listing duration in hours (default: 168)")),
         ), ns.handleListUnusedSeats)
 
-        // Tool 19: negotiate_search_used
+        // Tool 22: negotiate_search_used
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_search_used",
                 mcp.WithDescription("Search for unused SaaS seat listings for a vendor/SKU, sorted by ask price ascending."),
                 mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to search for")),
@@ -243,7 +264,7 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithInteger("max_seats", mcp.Description("Maximum seats filter (optional)")),
         ), ns.handleSearchUsed)
 
-        // Tool 20: negotiate_offer_seats
+        // Tool 23: negotiate_offer_seats
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_offer_seats",
                 mcp.WithDescription("Place a buy offer on a used-seats listing. Auto-accepts if ask price is within your max price."),
                 mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID to make an offer on")),
@@ -252,25 +273,25 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithNumber("max_price", mcp.Required(), mcp.Description("Maximum price per seat you are willing to pay")),
         ), ns.handleOfferSeats)
 
-        // Tool 21: negotiate_accept_offer
+        // Tool 24: negotiate_accept_offer
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_accept_offer",
                 mcp.WithDescription("Accept a pending offer on a listing. Creates a transaction with 5% platform fee and marks listing as completed."),
                 mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID")),
                 mcp.WithString("offer_id", mcp.Required(), mcp.Description("Offer ID to accept")),
         ), ns.handleAcceptOffer)
 
-        // Tool 22: negotiate_marketplace_overview
+        // Tool 25: negotiate_marketplace_overview
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_marketplace_overview",
                 mcp.WithDescription("Get marketplace overview: active listings count and recent transactions."),
         ), ns.handleMarketplaceOverview)
 
-        // Tool 23: negotiate_configure_slack
+        // Tool 26: negotiate_configure_slack
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_configure_slack",
                 mcp.WithDescription("Configure Slack webhook URL for negotiation alerts."),
                 mcp.WithString("webhook_url", mcp.Required(), mcp.Description("Slack incoming webhook URL")),
         ), ns.handleConfigureSlack)
 
-        // Tool 24: negotiate_slack_status
+        // Tool 27: negotiate_slack_status
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_slack_status",
                 mcp.WithDescription("Check if Slack integration is configured and when the last alert was sent."),
         ), ns.handleSlackStatus)
@@ -351,6 +372,18 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithNumber("max_latency_ms", mcp.Description("Maximum latency in milliseconds (optional)")),
 	), ns.handleFindCheapestModel)
 
+
+        // Tool: negotiate_vendor_reputation
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_reputation",
+                mcp.WithDescription("Get the negotiation reputation for a vendor — tracks how flexible or rigid they've been across past deals."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name (e.g. Slack, GitHub, Salesforce)")),
+        ), ns.handleVendorReputation)
+
+        // Tool: negotiate_rank_flexibility
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_rank_flexibility",
+                mcp.WithDescription("Rank all vendors by flexibility (avg discount percentage descending). Higher = more flexible and discount-friendly."),
+                mcp.WithInteger("limit", mcp.Description("Maximum number of vendors to return (optional, default all)")),
+        ), ns.handleRankFlexibility)
 
 }
 // ─── Tool Handlers ───
@@ -579,7 +612,7 @@ func (ns *NegotiationServer) handleRunNegotiation(ctx context.Context, req mcp.C
 		ns.logger.Error("failed to save rounds", "error", err.Error())
 	}
 
-	if session.Outcome == "accepted" {
+		if session.Outcome == "accepted" {
 		deal := &history.DealOutcome{
 			Vendor: session.Vendor, SKU: session.SKU, ListPrice: session.ListPrice,
 			FinalPrice: session.CurrentOffer, DiscountPct: result.TotalDiscount,
@@ -588,6 +621,39 @@ func (ns *NegotiationServer) handleRunNegotiation(ctx context.Context, req mcp.C
 		}
 		if err := ns.historyStore.SaveDealOutcome(ctx, deal); err != nil {
 			ns.logger.Error("failed to save deal outcome", "error", err.Error())
+		}
+	}
+
+	// Update vendor reputation based on this outcome.
+	succeeded := session.Outcome == "accepted"
+	discountPct := result.TotalDiscount
+	if !succeeded {
+		discountPct = 0
+	}
+	if err := ns.healthEng.UpdateReputation(ctx, session.Vendor, discountPct, succeeded); err != nil {
+		ns.logger.Error("failed to update vendor reputation", "vendor", session.Vendor, "error", err.Error())
+	}
+
+	// Record failure autopsy for non-accepted outcomes
+	if !succeeded && ns.learningEng != nil {
+		failureReason := deriveFailureReason(session.Outcome, session.Budget, session.CurrentOffer, session.ListPrice)
+		gap := session.ListPrice - session.CurrentOffer
+		if gap < 0 {
+			gap = 0
+		}
+		autopsy := learning.Autopsy{
+			SessionID:     session.ID,
+			Vendor:        session.Vendor,
+			SKU:           session.SKU,
+			Strategy:      session.Strategy,
+			FailureReason: failureReason,
+			FinalOffer:    session.CurrentOffer,
+			VendorBest:    session.CurrentOffer,
+			Gap:           gap,
+			TacticUsed:    session.Strategy,
+		}
+		if err := ns.learningEng.RecordFailure(ctx, autopsy); err != nil {
+			ns.logger.Error("failed to record failure autopsy", "session_id", session.ID, "error", err.Error())
 		}
 	}
 
@@ -816,6 +882,55 @@ func (ns *NegotiationServer) handleFindCheapestModel(ctx context.Context, req mc
 		"task_type":   taskType,
 		"models":      models,
 		"count":       len(models),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+
+// ─── Vendor Reputation Handlers ───
+
+func (ns *NegotiationServer) handleVendorReputation(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+
+	ns.logger.Debug("vendor_reputation called", "vendor", vendor)
+
+	rep, err := ns.healthEng.GetReputation(ctx, vendor)
+	if err != nil {
+		ns.logger.Warn("vendor_reputation failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Reputation lookup failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":              rep.Vendor,
+		"deal_count":          rep.DealCount,
+		"avg_discount_pct":    rep.AvgDiscountPct,
+		"max_discount_pct":    rep.MaxDiscountPct,
+		"negotiability":       rep.Negotiability,
+		"win_rate":            rep.WinRate,
+		"duration_ms":         time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRankFlexibility(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	limit := int(req.GetInt("limit", 0))
+
+	ns.logger.Debug("rank_flexibility called", "limit", limit)
+
+	rankings, err := ns.healthEng.RankFlexibility(ctx, limit)
+	if err != nil {
+		ns.logger.Warn("rank_flexibility failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Rank flexibility failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"rankings":    rankings,
+		"count":       len(rankings),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -1413,6 +1528,125 @@ func (ns *NegotiationServer) handleLearningInsights(ctx context.Context, req mcp
 
 	insights["duration_ms"] = time.Since(start).Milliseconds()
 	return ns.jsonResult(insights)
+}
+
+// ─── Failure Autopsy Handlers ───
+
+func (ns *NegotiationServer) handleFailureAutopsy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+        sessionID, _ := req.RequireString("session_id")
+
+        ns.logger.Debug("failure_autopsy called", "session_id", sessionID)
+
+        if ns.learningEng == nil {
+                return mcp.NewToolResultError("Learning engine is not available"), nil
+        }
+
+        // Load session from history store to build autopsy
+        sessRec, err := ns.historyStore.GetSession(ctx, sessionID)
+        if err != nil {
+                return mcp.NewToolResultError(fmt.Sprintf("Session not found: %s", err.Error())), nil
+        }
+
+        // Derive failure reason from session outcome
+        failureReason := deriveFailureReason(sessRec.Outcome, sessRec.Budget, sessRec.CurrentOffer, sessRec.ListPrice)
+        gap := sessRec.ListPrice - sessRec.CurrentOffer
+        if gap < 0 {
+                gap = 0
+        }
+
+        autopsy := learning.Autopsy{
+                SessionID:     sessionID,
+                Vendor:        sessRec.Vendor,
+                SKU:           sessRec.SKU,
+                Strategy:      sessRec.Strategy,
+                FailureReason: failureReason,
+                FinalOffer:    sessRec.CurrentOffer,
+                VendorBest:    sessRec.CurrentOffer,
+                Gap:           gap,
+                TacticUsed:    sessRec.Strategy,
+        }
+
+        resp := map[string]any{
+                "session_id":     autopsy.SessionID,
+                "vendor":         autopsy.Vendor,
+                "sku":            autopsy.SKU,
+                "strategy":       autopsy.Strategy,
+                "failure_reason": autopsy.FailureReason,
+                "final_offer":    autopsy.FinalOffer,
+                "vendor_best":    autopsy.VendorBest,
+                "gap":            autopsy.Gap,
+                "tactic_used":    autopsy.TacticUsed,
+                "duration_ms":    time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleFailurePatterns(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+        vendor, _ := req.RequireString("vendor")
+
+        ns.logger.Debug("failure_patterns called", "vendor", vendor)
+
+        if ns.learningEng == nil {
+                return mcp.NewToolResultError("Learning engine is not available"), nil
+        }
+
+        patterns, err := ns.learningEng.AnalyzeFailures(ctx, vendor)
+        if err != nil {
+                ns.logger.Warn("failure_patterns failed", "vendor", vendor, "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Failure analysis failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "vendor":   vendor,
+                "patterns": patterns,
+                "count":    len(patterns),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCommonFailures(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+        limit := int(req.GetInt("limit", 10))
+
+        ns.logger.Debug("common_failures called", "limit", limit)
+
+        if ns.learningEng == nil {
+                return mcp.NewToolResultError("Learning engine is not available"), nil
+        }
+
+        patterns, err := ns.learningEng.CommonFailureModes(ctx, limit)
+        if err != nil {
+                ns.logger.Warn("common_failures failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Common failures query failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "patterns":   patterns,
+                "count":      len(patterns),
+                "limit":      limit,
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+// deriveFailureReason maps negotiation outcome + session state to a failure reason string.
+func deriveFailureReason(outcome string, budget float64, currentOffer float64, listPrice float64) string {
+        switch outcome {
+        case "walked_away":
+                return "vendor_refused"
+        case "rejected":
+                if budget > 0 && currentOffer > budget {
+                        return "budget_exceeded"
+                }
+                return "price_too_high"
+        case "timeout":
+                return "timeout"
+        default:
+                return "counter_too_low"
+        }
 }
 
 // ─── Marketplace Handlers ───

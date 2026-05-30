@@ -48,6 +48,21 @@ func (e *Engine) migrate() error {
 		timestamp TEXT
 	);
 	CREATE INDEX IF NOT EXISTS idx_learning_vendor ON learning_outcomes(vendor);
+
+	CREATE TABLE IF NOT EXISTS failure_autopsies (
+		id TEXT PRIMARY KEY,
+		session_id TEXT,
+		vendor TEXT,
+		sku TEXT,
+		strategy TEXT,
+		failure_reason TEXT,
+		final_offer REAL,
+		vendor_best REAL,
+		gap REAL,
+		tactic_used TEXT,
+		created_at TEXT
+	);
+	CREATE INDEX IF NOT EXISTS idx_failure_vendor ON failure_autopsies(vendor);
 	`
 	_, err := e.db.Exec(schema)
 	return err
