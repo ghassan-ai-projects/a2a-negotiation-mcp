@@ -91,6 +91,21 @@ func (s *Store) migrate() error {
 
 	CREATE INDEX IF NOT EXISTS idx_pricing_vendor ON pricing_snapshot(vendor_id);
 	CREATE INDEX IF NOT EXISTS idx_pricing_sku ON pricing_snapshot(sku);
+
+	CREATE TABLE IF NOT EXISTS mandates (
+		id TEXT PRIMARY KEY,
+		type TEXT NOT NULL,
+		principal TEXT NOT NULL,
+		agent_id TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'pending',
+		expires_at TEXT NOT NULL,
+		terms TEXT NOT NULL DEFAULT '{}',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_mandates_status ON mandates(status);
+	CREATE INDEX IF NOT EXISTS idx_mandates_principal ON mandates(principal);
+	CREATE INDEX IF NOT EXISTS idx_mandates_type ON mandates(type);
 	`
 	_, err := s.db.Exec(schema)
 	return err

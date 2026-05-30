@@ -1,0 +1,48 @@
+{
+  "$schema": "https://a2a-api.agency/v1",
+  "name": "A2A Negotiation MCP Server",
+  "description": "Agent-to-Agent SaaS pricing negotiation server. Query market prices, run multi-round negotiations across 3 strategy profiles, and manage pricing mandates.",
+  "url": "http://localhost:8080",
+  "version": "1.0.0",
+  "capabilities": [
+    "negotiate",
+    "query_price",
+    "task",
+    "mandate"
+  ],
+  "skills": [
+    {
+      "id": "query_price",
+      "name": "Query Market Price",
+      "description": "Query fair market price range for a SaaS vendor's product. Supports quantity and contract-term multipliers.",
+      "uri": "http://localhost:8080/a2a/task",
+      "examples": [
+        "{\"task\":\"query_price\",\"params\":{\"vendor\":\"Slack\",\"sku\":\"Pro\",\"quantity\":500}}"
+      ]
+    },
+    {
+      "id": "negotiate",
+      "name": "Negotiate SaaS Pricing",
+      "description": "Run a multi-round negotiation for a vendor/SKU using aggressive, balanced, or conservative strategy. Creates a mandate and a negotiation session.",
+      "uri": "http://localhost:8080/a2a/negotiate",
+      "examples": [
+        "{\"vendor\":\"Slack\",\"sku\":\"Pro\",\"strategy\":\"balanced\",\"budget\":7.50}"
+      ]
+    },
+    {
+      "id": "mandate",
+      "name": "Manage Pricing Mandates",
+      "description": "Create and manage AP2-style mandates for intent, cart, and payment operations. Supports settlement, cancellation, and expiry.",
+      "uri": "http://localhost:8080/a2a/task",
+      "examples": [
+        "{\"task\":\"mandate_create\",\"params\":{\"type\":\"intent\",\"principal\":\"agent-alpha\",\"terms\":{\"vendor\":\"Slack\"}}}"
+      ]
+    }
+  ],
+  "authentication": {
+    "schemes": ["none"],
+    "bearer": false
+  },
+  "defaultInputModes": ["text/json"],
+  "defaultOutputModes": ["text/json"]
+}

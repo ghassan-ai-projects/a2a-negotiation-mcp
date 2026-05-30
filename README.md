@@ -102,3 +102,61 @@ go test ./... -v -count=1
 ```
 
 Covers: price query, session creation, negotiation loop (accept/budget/walk-away), history CRUD, edge cases (empty DB, unknown vendor, concurrent sessions).
+
+---
+
+## A2A HTTP Endpoints
+
+The server can optionally serve A2A (Agent-to-Agent) protocol endpoints over HTTP by passing the `-http` flag.
+
+### Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-http` | `""` | HTTP listen address for A2A endpoints (e.g. `:8080`). Omit to run stdio-only. |
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/a2a/task` | Dispatch a task (query_price, mandate_create, mandate_settle, mandate_cancel). Accepts `{"task": "...", "params": {...}}`. |
+| `GET` | `/a2a/task/{id}` | Returns session status and result for a previously submitted task. |
+| `POST` | `/a2a/negotiate` | Create a mandate + negotiation session. Accepts `{"vendor": "...", "sku": "...", "strategy": "...", "budget": N}`. |
+| `GET` | `/.well-known/agent-card.json` | Returns the A2A Agent Card describing server capabilities, skills, and authentication. |
+
+### Running with HTTP
+
+```bash
+# Run both stdio MCP and HTTP A2A server
+./bin/a2a-negotiation -http :8080 -seed data/seeds/saas_pricing.csv
+
+# Run HTTP only (stdio also starts — both modes are independent)
+./bin/a2a-negotiation -http :8080
+
+# Run stdio only (no HTTP)
+./bin/a2a-negotiation
+```
+
+### Example Requests
+
+```bash
+# Query price
+curl -X POST http://localhost:8080/a2a/task \
+  -H 'Content-Type: application/json' \
+  -d '{"task":"query_price","params":{"vendor":"Slack","sku":"Pro"}}'
+
+# Negotiate pricing
+curl -X POST http://localhost:8080/a2a/negotiate \
+  -H 'Content-Type: application/json' \
+  -d '{"vendor":"Slack","sku":"Pro","strategy":"balanced","budget":7.00}'
+
+# Get Agent Card
+curl http://localhost:8080/.well-known/agent-card.json
+```
+
+### Modes
+
+Both stdio and HTTP modes work **independently**:
+- **stdio only**: `./bin/a2a-negotiation` (existing behavior)
+- **HTTP only**: `./bin/a2a-negotiation -http :8080` (both start, but stdio is idle if no MCP client connects)
+- **Both**: `./bin/a2a-negotiation -http :8080` — both servers run concurrently in parallel goroutines
