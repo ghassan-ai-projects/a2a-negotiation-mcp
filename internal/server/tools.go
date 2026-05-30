@@ -16,6 +16,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/quote"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
@@ -42,6 +43,7 @@ type NegotiationServer struct {
         marketplaceEng *marketplace.Engine
 	slaEng       *sla.Engine
 	slackClient  *slack.Client
+        quoteEng     *quote.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
@@ -75,6 +77,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		learningEng:    learningEng,
                 marketplaceEng: marketplaceEngine,
 		slackClient:    slackClient,
+                quoteEng:       quote.NewEngine(pricingStore, logger),
 	}
 
 	ns.registerTools()
@@ -291,10 +294,22 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_sla_report",
 		mcp.WithDescription("Get SLA report for a given month with all contracts, breaches, and credits."),
 		mcp.WithString("month", mcp.Required(), mcp.Description("Month (RFC3339 date, e.g. 2026-06-01T00:00:00Z)")),
-	), ns.handleSLAReport)
+        ), ns.handleSLAReport)
+
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_analyze_quote",
+                mcp.WithDescription("Analyze a vendor quote email. Extracts vendor, SKU, quantity, price, and term from raw text, then cross-references against pricing database for market range and counter-offer recommendation."),
+                mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full text of the vendor quote email")),
+                mcp.WithString("vendor", mcp.Description("Vendor name override (optional — extracted from text if omitted)")),
+                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+        ), ns.handleAnalyzeQuote)
+
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_counter",
+                mcp.WithDescription("Generate a formatted counter-offer text from a quote analysis JSON."),
+                mcp.WithString("analysis_json", mcp.Required(), mcp.Description("The full QuoteAnalysis JSON from negotiate_analyze_quote")),
+        ), ns.handleGenerateCounter)
+
+
 }
-
-
 // ─── Tool Handlers ───
 
 func (ns *NegotiationServer) handleQueryPrice(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -1578,6 +1593,73 @@ func (ns *NegotiationServer) handleSLAReport(ctx context.Context, req mcp.CallTo
 		"breaches":      report.Breaches,
 		"total_credits": report.TotalCredits,
 		"filed_count":   report.FiledCount,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAnalyzeQuote(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	rawText, _ := req.RequireString("raw_text")
+	vendor := req.GetString("vendor", "")
+	sku := req.GetString("sku", "")
+
+	ns.logger.Debug("analyze_quote called", "vendor", vendor, "sku", sku, "text_length", len(rawText))
+
+	input := quote.QuoteInput{
+		RawText: rawText,
+		Vendor:  vendor,
+		SKU:     sku,
+	}
+
+	analysis, err := ns.quoteEng.AnalyzeQuote(ctx, input)
+	if err != nil {
+		ns.logger.Warn("analyze_quote failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Quote analysis failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"quote": map[string]any{
+			"vendor":          analysis.Quote.Vendor,
+			"sku":             analysis.Quote.SKU,
+			"description":     analysis.Quote.Description,
+			"seats":           analysis.Quote.Seats,
+			"term_months":     analysis.Quote.TermMonths,
+			"price_per_unit":  analysis.Quote.PricePerUnit,
+			"total_price":     analysis.Quote.TotalPrice,
+			"list_price":      analysis.Quote.ListPrice,
+			"discount_offered": analysis.Quote.DiscountOffered,
+		},
+		"market_range":       analysis.MarketRange,
+		"counter_offer_min":  analysis.CounterOfferMin,
+		"counter_offer_max":  analysis.CounterOfferMax,
+		"potential_savings":  analysis.PotentialSavings,
+		"confidence":         analysis.Confidence,
+		"duration_ms":        time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleGenerateCounter(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	analysisJSON, _ := req.RequireString("analysis_json")
+
+	ns.logger.Debug("generate_counter called", "analysis_length", len(analysisJSON))
+
+	var analysis quote.QuoteAnalysis
+	if err := json.Unmarshal([]byte(analysisJSON), &analysis); err != nil {
+		ns.logger.Warn("generate_counter failed to parse analysis_json", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid analysis_json: %s", err.Error())), nil
+	}
+
+	counterText, err := ns.quoteEng.GenerateCounterOffer(ctx, &analysis)
+	if err != nil {
+		ns.logger.Warn("generate_counter failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Counter-offer generation failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"counter_offer": counterText,
 		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
