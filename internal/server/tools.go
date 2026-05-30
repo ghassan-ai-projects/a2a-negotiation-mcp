@@ -9,6 +9,7 @@ import (
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -21,12 +22,14 @@ type NegotiationServer struct {
 	pricingStore   *pricing.Store
 	negotiationEng *negotiation.Engine
 	historyStore   *history.Store
+	minerEng       *miner.Engine
 	logger         *slog.Logger
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
 func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
+	miningEng := miner.NewEngine(pricingStore, logger)
 
 	ns := &NegotiationServer{
 		mcpServer: mcpserver.NewMCPServer(
@@ -39,6 +42,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		pricingStore:   pricingStore,
 		negotiationEng: eng,
 		historyStore:   historyStore,
+		minerEng:       miningEng,
 		logger:         logger,
 	}
 
@@ -364,6 +368,48 @@ func (ns *NegotiationServer) handleStrategies(ctx context.Context, req mcp.CallT
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleDiscoverOpportunities(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+        businessName, _ := req.RequireString("business_name")
+        description, _ := req.RequireString("description")
+        industry := req.GetString("industry", "")
+        employees := int(req.GetFloat("employees", 0))
+        rawVendors, _ := req.GetArguments()["vendors"]
+	vendorsList, _ := rawVendors.([]any)
+
+        ns.logger.Debug("discover_opportunities called",
+                "name", businessName, "industry", industry, "employees", employees)
+
+        vendors := make([]string, 0, len(vendorsList))
+        for _, v := range vendorsList {
+                if s, ok := v.(string); ok {
+                        vendors = append(vendors, s)
+                }
+        }
+
+        profile := miner.BusinessProfile{
+                Name:        businessName,
+                Description: description,
+                Employees:   employees,
+                Industry:    industry,
+                Vendors:     vendors,
+        }
+
+        opportunities, err := ns.minerEng.DiscoverOpportunities(ctx, profile)
+        if err != nil {
+                ns.logger.Error("discover_opportunities failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Opportunity discovery failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "business_name": businessName,
+                "opportunities": opportunities,
+                "opportunity_count": len(opportunities),
+                "duration_ms":  time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) jsonResult(data map[string]any) (*mcp.CallToolResult, error) {

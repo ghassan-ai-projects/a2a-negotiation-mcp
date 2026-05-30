@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -41,6 +42,14 @@ func (ns *NegotiationServer) registerResources() {
 		mcp.WithResourceDescription("List of all available negotiation strategy profiles"),
 		mcp.WithMIMEType("application/json"),
 	), ns.handleStrategiesResource)
+
+	// Resource 5: negotiate://opportunities/{industry}
+	ns.mcpServer.AddResourceTemplate(mcp.NewResourceTemplate(
+		"negotiate://opportunities/{industry}",
+		"Negotiation opportunities for an industry",
+		mcp.WithTemplateDescription("Top negotiation opportunities for a given industry vertical"),
+		mcp.WithTemplateMIMEType("application/json"),
+	), ns.handleOpportunitiesResource)
 }
 
 // ─── Resource Handlers ───
@@ -160,6 +169,39 @@ func (ns *NegotiationServer) handleStrategiesResource(ctx context.Context, req m
 	}
 
 	b, _ := json.MarshalIndent(resp, "", "  ")
+	return []mcp.ResourceContents{
+		mcp.TextResourceContents{
+			URI:      req.Params.URI,
+			MIMEType: "application/json",
+			Text:     string(b),
+		},
+	}, nil
+}
+
+func (ns *NegotiationServer) handleOpportunitiesResource(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+	industry, _ := req.Params.Arguments["industry"].(string)
+	if industry == "" {
+		return nil, fmt.Errorf("industry is required")
+	}
+
+	profile := miner.BusinessProfile{
+		Name:     industry + " opportunities",
+		Industry: industry,
+	}
+
+	opportunities, err := ns.minerEng.DiscoverOpportunities(ctx, profile)
+	if err != nil {
+		return nil, err
+	}
+
+	data := map[string]any{
+		"uri":           req.Params.URI,
+		"industry":      industry,
+		"opportunities": opportunities,
+		"count":         len(opportunities),
+	}
+
+	b, _ := json.MarshalIndent(data, "", "  ")
 	return []mcp.ResourceContents{
 		mcp.TextResourceContents{
 			URI:      req.Params.URI,
