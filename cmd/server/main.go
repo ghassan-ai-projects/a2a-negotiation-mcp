@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	"strconv"
+	"strings"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
@@ -24,6 +26,8 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/roi"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -156,6 +160,27 @@ func main() {
 	}
 	slaEngine := sla.NewEngine(slaStore, logger)
 
+	// Initialize ROI store (shares the same DB)
+	roiStore, err := roi.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize roi store", "error", err.Error())
+		os.Exit(1)
+	}
+
+	// Initialize trends store (shares the same DB)
+	trendsStore, err := trends.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize trends store", "error", err.Error())
+		os.Exit(1)
+	}
+
+	// Seed price_snapshots for trend analysis (first-run only)
+	// This generates 12 months of mock price data for trend analysis tools
+	if *seedPath != "" {
+		logger.Info("seeding price snapshot data", "path", *seedPath)
+		seedSnapshotsFromCSV(context.Background(), trendsStore, *seedPath, logger)
+	}
+
 	// Initialize Slack client if webhook provided
 	var slackClient *slack.Client
 	if *slackWebhook != "" {
@@ -173,7 +198,7 @@ func main() {
 
 
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())
@@ -245,4 +270,57 @@ func dataDir() string {
 		return "."
 	}
 	return filepath.Join(home, ".a2a-negotiation")
+}
+
+// seedSnapshotsFromCSV reads a CSV of price snapshots and bulk-inserts them
+// for trend analysis. This is a first-run operation when -seed is provided.
+func seedSnapshotsFromCSV(ctx context.Context, store *trends.Store, path string, logger *slog.Logger) {
+	importCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		logger.Error("failed to read seed CSV", "error", err.Error())
+		return
+	}
+
+	lines := strings.Split(string(data), "\n")
+	var snapshots []trends.PriceSnapshot
+	for i, line := range lines {
+		if i == 0 || strings.TrimSpace(line) == "" {
+			continue
+		}
+		parts := strings.Split(line, ",")
+		if len(parts) < 5 {
+			continue
+		}
+
+		price, _ := strconv.ParseFloat(strings.TrimSpace(parts[2]), 64)
+		listPrice, _ := strconv.ParseFloat(strings.TrimSpace(parts[3]), 64)
+		date, err := time.Parse(time.DateOnly, strings.TrimSpace(parts[4]))
+		if err != nil {
+			continue
+		}
+
+		snapshots = append(snapshots, trends.PriceSnapshot{
+			Vendor:    strings.TrimSpace(parts[0]),
+			SKU:       strings.TrimSpace(parts[1]),
+			Price:     price,
+			ListPrice: listPrice,
+			Date:      date,
+			CreatedAt: time.Now().UTC(),
+		})
+	}
+
+	if len(snapshots) == 0 {
+		logger.Warn("no price snapshots to seed")
+		return
+	}
+
+	if err := store.BulkInsert(importCtx, snapshots); err != nil {
+		logger.Error("failed to bulk insert price snapshots", "error", err.Error())
+		return
+	}
+
+	logger.Info("price snapshots seeded", "count", len(snapshots))
 }

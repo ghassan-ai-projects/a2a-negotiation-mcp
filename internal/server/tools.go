@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/benchmark"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
@@ -22,9 +23,11 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/quote"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/roi"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -52,10 +55,13 @@ type NegotiationServer struct {
         quoteEng     *quote.Engine
         contractEng  *contract.Engine
         gamificationEng *gamification.Engine
+	roiEng          *roi.Engine
+	benchmarkEng    *benchmark.Engine
+	trendsEng       *trends.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -87,6 +93,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		slackClient:    slackClient,
 		apiKeyStore:    apiKeyStore,
                 quoteEng:       quote.NewEngine(pricingStore, logger),
+		roiEng:          roi.NewEngine(roiStore),
+		benchmarkEng:    benchmark.NewEngine(historyStore, logger),
+		trendsEng:       trends.NewEngine(trendsStore, logger),
 		contractEng:    contract.NewEngine(calendarEngine, logger),
                 healthEng:      healthEngine,
                 slaEng:         slaEngine,
@@ -406,6 +415,32 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithDescription("Get all gamification badges and their earned status for a user."),
                 mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
         ), ns.handleAchievements)
+
+	// Tool 5a: negotiate_calculate_roi
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_calculate_roi",
+		mcp.WithDescription("Calculate ROI for a negotiated deal. Returns annual savings, ROI percentage, payback period, multi-year savings, and NPV at 8% discount rate."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithNumber("current_spend", mcp.Required(), mcp.Description("Current annual spend with this vendor")),
+		mcp.WithNumber("negotiated_price", mcp.Required(), mcp.Description("Negotiated annual price")),
+		mcp.WithNumber("implementation_costs", mcp.Description("One-time implementation/migration costs (optional, default 0)")),
+		mcp.WithNumber("annual_overhead", mcp.Description("Annual management/overhead costs (optional, default 0)")),
+	), ns.handleCalculateROI)
+
+	// Tool 5b: negotiate_benchmark_report
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_benchmark_report",
+		mcp.WithDescription("Generate a savings benchmark report comparing your performance against all users. Returns percentile rank, savings by vendor, and average discount."),
+		mcp.WithString("vendor", mcp.Description("Filter by vendor (optional)")),
+		mcp.WithString("category", mcp.Description("Filter by category (optional)")),
+		mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y (default: 90d)")),
+	), ns.handleBenchmarkReport)
+
+	// Tool 5c: negotiate_price_trends
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_price_trends",
+		mcp.WithDescription("Analyze price trends for a vendor SKU. Uses linear regression to determine direction (up/down/stable), volatility, and forecasts."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+		mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 6m, 1y, 2y (default: 1y)")),
+	), ns.handlePriceTrends)
 
 }
 // ─── Tool Handlers ───
@@ -2284,6 +2319,115 @@ func (ns *NegotiationServer) handleAchievements(ctx context.Context, req mcp.Cal
 		"badges":     badges,
 		"count":      len(badges),
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── ROI Handlers ───
+
+func (ns *NegotiationServer) handleCalculateROI(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	currentSpend := req.GetFloat("current_spend", 0)
+	negotiatedPrice := req.GetFloat("negotiated_price", 0)
+	implementationCosts := req.GetFloat("implementation_costs", 0)
+	annualOverhead := req.GetFloat("annual_overhead", 0)
+
+	ns.logger.Debug("calculate_roi called", "vendor", vendor)
+
+	calc, err := ns.roiEng.Calculate(ctx, currentSpend, negotiatedPrice, implementationCosts, annualOverhead)
+	if err != nil {
+		ns.logger.Warn("calculate_roi failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("ROI calculation failed: %s", err.Error())), nil
+	}
+
+	calc.Vendor = vendor
+
+	resp := map[string]any{
+		"vendor":                calc.Vendor,
+		"current_spend":         calc.CurrentSpend,
+		"negotiated_price":      calc.NegotiatedPrice,
+		"implementation_costs":  calc.ImplementationCosts,
+		"annual_overhead":       calc.AnnualOverhead,
+		"annual_savings":        calc.AnnualSavings,
+		"roi_pct":               calc.ROIPct,
+		"payback_months":        calc.PaybackMonths,
+		"savings_1y":            calc.Savings1Y,
+		"savings_3y":            calc.Savings3Y,
+		"savings_5y":            calc.Savings5Y,
+		"npv":                   calc.NPV,
+		"duration_ms":           time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Benchmark Handlers ───
+
+func (ns *NegotiationServer) handleBenchmarkReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	category, _ := req.RequireString("category")
+	period, _ := req.RequireString("period")
+	if period == "" {
+		period = "90d"
+	}
+
+	ns.logger.Debug("benchmark_report called", "vendor", vendor, "category", category, "period", period)
+
+	report, err := ns.benchmarkEng.GenerateReport(ctx, "", vendor, category, period)
+	if err != nil {
+		ns.logger.Warn("benchmark_report failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Benchmark report failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"total_savings":    report.TotalSavings,
+		"avg_discount_pct": report.AvgDiscountPct,
+		"deal_count":       report.DealCount,
+		"percentile":       report.Percentile,
+		"by_vendor":        report.ByVendor,
+		"period":           report.Period,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Price Trend Handlers ───
+
+func (ns *NegotiationServer) handlePriceTrends(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	sku, _ := req.RequireString("sku")
+	period, _ := req.RequireString("period")
+	if period == "" {
+		period = "1y"
+	}
+
+	ns.logger.Debug("price_trends called", "vendor", vendor, "sku", sku, "period", period)
+
+	analysis, err := ns.trendsEng.Analyze(ctx, vendor, sku, period)
+	if err != nil {
+		ns.logger.Warn("price_trends failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Price trend analysis failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":           analysis.Vendor,
+		"sku":              analysis.SKU,
+		"period":           analysis.Period,
+		"direction":        analysis.Direction,
+		"slope":            analysis.Slope,
+		"volatility":       analysis.Volatility,
+		"price_change_6m":  analysis.PriceChange6M,
+		"forecast_3m":      analysis.Forecast3M,
+		"forecast_6m":      analysis.Forecast6M,
+		"seasonal":         analysis.Seasonal,
+		"data_points":      analysis.DataPoints,
+		"snapshots":        analysis.Snapshots,
+		"duration_ms":      time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
