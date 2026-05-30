@@ -28,6 +28,8 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/roi"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -197,8 +199,22 @@ func main() {
 	webhookEng := webhooks.NewEngine(webhookStore, logger)
 
 
+	// Initialize export store (shares the same DB)
+	exportStore, err := export.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize export store", "error", err.Error())
+		os.Exit(1)
+	}
+
+	// Initialize notification store (shares the same DB)
+	notifyStore, err := notify.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize notification store", "error", err.Error())
+		os.Exit(1)
+	}
+
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())

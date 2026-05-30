@@ -12,6 +12,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/benchmark"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/winloss"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
@@ -58,10 +61,13 @@ type NegotiationServer struct {
 	roiEng          *roi.Engine
 	benchmarkEng    *benchmark.Engine
 	trendsEng       *trends.Engine
+        winlossEng      *winloss.Engine
+        exportEng        *export.Engine
+        notifyEng        *notify.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -96,6 +102,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		roiEng:          roi.NewEngine(roiStore),
 		benchmarkEng:    benchmark.NewEngine(historyStore, logger),
 		trendsEng:       trends.NewEngine(trendsStore, logger),
+                winlossEng:      winloss.NewEngine(historyStore, logger),
+                exportEng:        export.NewEngine(exportStore, historyStore, logger),
+                notifyEng:        notify.NewEngine(notifyStore, logger),
 		contractEng:    contract.NewEngine(calendarEngine, logger),
                 healthEng:      healthEngine,
                 slaEng:         slaEngine,
@@ -441,6 +450,45 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
 		mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 6m, 1y, 2y (default: 1y)")),
 	), ns.handlePriceTrends)
+        // Tool 5d: negotiate_win_loss_analysis
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_win_loss_analysis",
+                mcp.WithDescription("Analyze win/loss rates for negotiations. Returns win rate percentage, breakdowns by strategy and vendor, and monthly trends."),
+                mcp.WithString("vendor", mcp.Description("Filter by vendor (optional)")),
+                mcp.WithString("strategy", mcp.Description("Filter by strategy (optional)")),
+                mcp.WithString("period", mcp.Description("Time period: all, 30d, 90d, 1y (default: all)")),
+        ), ns.handleWinLossAnalysis)
+
+        // Tool 5e: negotiate_export_data
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_export_data",
+                mcp.WithDescription("Export negotiation data in CSV or JSON format. Supports deals, sessions, analytics, or all data."),
+                mcp.WithString("format", mcp.Description("Export format: csv or json (default: csv)")),
+                mcp.WithString("type", mcp.Description("Data type: deals, sessions, analytics, or all (default: deals)")),
+                mcp.WithString("vendor", mcp.Description("Filter by vendor (optional)")),
+                mcp.WithString("date_from", mcp.Description("Filter by start date (RFC3339, optional)")),
+                mcp.WithString("date_to", mcp.Description("Filter by end date (RFC3339, optional)")),
+        ), ns.handleExportData)
+
+        // Tool 5f: negotiate_set_preferences
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_preferences",
+                mcp.WithDescription("Set notification preferences for a channel. Configure enabled notification types, digest frequency, and webhook URL."),
+                mcp.WithString("channel", mcp.Required(), mcp.Description("Notification channel: slack or webhook")),
+                mcp.WithArray("enabled_types", mcp.WithStringItems(), mcp.Description("Enabled notification types (e.g., deal_closed, renewal, alert)")),
+                mcp.WithString("digest_frequency", mcp.Description("Digest frequency: daily, weekly, or never (default: never)")),
+                mcp.WithString("webhook_url", mcp.Description("Webhook URL (required for webhook channel)")),
+        ), ns.handleSetPreferences)
+
+        // Tool 5g: negotiate_get_preferences
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_preferences",
+                mcp.WithDescription("Get current notification preferences."),
+        ), ns.handleGetPreferences)
+
+        // Tool 5h: negotiate_send_notification
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_send_notification",
+                mcp.WithDescription("Send a notification via the configured channel. Logs the notification and sends to webhook if configured."),
+                mcp.WithString("type", mcp.Required(), mcp.Description("Notification type (e.g., deal_closed, renewal, alert)")),
+                mcp.WithString("message", mcp.Required(), mcp.Description("Notification message body")),
+                mcp.WithString("priority", mcp.Description("Priority: low, normal, high, urgent (default: normal)")),
+        ), ns.handleSendNotification)
 
 }
 // ─── Tool Handlers ───
@@ -2428,6 +2476,163 @@ func (ns *NegotiationServer) handlePriceTrends(ctx context.Context, req mcp.Call
 		"data_points":      analysis.DataPoints,
 		"snapshots":        analysis.Snapshots,
 		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Win/Loss Handlers ───
+
+func (ns *NegotiationServer) handleWinLossAnalysis(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor := req.GetString("vendor", "")
+	strategy := req.GetString("strategy", "")
+	period := req.GetString("period", "all")
+
+	ns.logger.Debug("win_loss_analysis called", "vendor", vendor, "strategy", strategy, "period", period)
+
+	report, err := ns.winlossEng.Analyze(ctx, vendor, strategy, period)
+	if err != nil {
+		ns.logger.Warn("win_loss_analysis failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Win/loss analysis failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"period":       report.Period,
+		"total_deals":  report.TotalDeals,
+		"won":          report.Won,
+		"lost":         report.Lost,
+		"pending":      report.Pending,
+		"win_rate_pct": report.WinRate,
+		"by_strategy":  report.ByStrategy,
+		"by_vendor":    report.ByVendor,
+		"monthly_trend": report.MonthlyTrend,
+		"duration_ms":  time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Export Handlers ───
+
+func (ns *NegotiationServer) handleExportData(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	format := req.GetString("format", "csv")
+	exportType := req.GetString("type", "deals")
+	vendor := req.GetString("vendor", "")
+	dateFrom := req.GetString("date_from", "")
+	dateTo := req.GetString("date_to", "")
+
+	ns.logger.Debug("export_data called", "format", format, "type", exportType, "vendor", vendor)
+
+	reqData := export.ExportRequest{
+		Format:   format,
+		Type:     exportType,
+		Vendor:   vendor,
+		DateFrom: dateFrom,
+		DateTo:   dateTo,
+	}
+
+	result, err := ns.exportEng.Export(ctx, reqData)
+	if err != nil {
+		ns.logger.Warn("export_data failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Export failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"export_id":    result.ExportID,
+		"format":       result.Format,
+		"export_type":  result.ExportType,
+		"record_count": result.RecordCount,
+		"data":         result.Data,
+		"filename":     result.Filename,
+		"generated_at": result.GeneratedAt,
+		"duration_ms":  time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Notification Handlers ───
+
+func (ns *NegotiationServer) handleSetPreferences(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	channel, _ := req.RequireString("channel")
+	rawTypes, _ := req.GetArguments()["enabled_types"]
+	enabledTypesRaw, _ := rawTypes.([]any)
+	digestFreq := req.GetString("digest_frequency", "never")
+	webhookURL := req.GetString("webhook_url", "")
+
+	ns.logger.Debug("set_preferences called", "channel", channel, "digest_freq", digestFreq)
+
+	enabledTypes := make([]string, len(enabledTypesRaw))
+	for i, v := range enabledTypesRaw {
+		enabledTypes[i], _ = v.(string)
+	}
+
+	prefs, err := ns.notifyEng.SetPreferences(ctx, channel, enabledTypes, digestFreq, webhookURL)
+	if err != nil {
+		ns.logger.Warn("set_preferences failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Set preferences failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"user_id":          prefs.UserID,
+		"channel":          prefs.Channel,
+		"enabled_types":    prefs.EnabledTypes,
+		"digest_frequency": prefs.DigestFreq,
+		"webhook_url":      prefs.WebhookURL,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleGetPreferences(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("get_preferences called")
+
+	prefs, err := ns.notifyEng.GetPreferences(ctx)
+	if err != nil {
+		ns.logger.Warn("get_preferences failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Get preferences failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"user_id":          prefs.UserID,
+		"channel":          prefs.Channel,
+		"enabled_types":    prefs.EnabledTypes,
+		"digest_frequency": prefs.DigestFreq,
+		"webhook_url":      prefs.WebhookURL,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSendNotification(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	notifType, _ := req.RequireString("type")
+	message, _ := req.RequireString("message")
+	priority := req.GetString("priority", "normal")
+
+	ns.logger.Debug("send_notification called", "type", notifType, "priority", priority)
+
+	n, err := ns.notifyEng.SendNotification(ctx, notifType, message, priority)
+	if err != nil {
+		ns.logger.Warn("send_notification failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Send notification failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"id":         n.ID,
+		"type":       n.Type,
+		"channel":    n.Channel,
+		"message":    n.Message,
+		"priority":   n.Priority,
+		"status":     n.Status,
+		"created_at": n.CreatedAt.Format(time.RFC3339),
+		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
