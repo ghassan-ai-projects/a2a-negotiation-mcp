@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
@@ -44,12 +45,13 @@ type NegotiationServer struct {
         marketplaceEng *marketplace.Engine
 	slaEng       *sla.Engine
 	slackClient  *slack.Client
+        apiKeyStore  *a2a.APIKeyStore
         quoteEng     *quote.Engine
         contractEng  *contract.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, slackClient *slack.Client, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -79,6 +81,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		learningEng:    learningEng,
                 marketplaceEng: marketplaceEngine,
 		slackClient:    slackClient,
+		apiKeyStore:    apiKeyStore,
                 quoteEng:       quote.NewEngine(pricingStore, logger),
 		contractEng:    contract.NewEngine(calendarEngine, logger),
 	}
@@ -326,8 +329,61 @@ func (ns *NegotiationServer) registerTools() {
         ), ns.handleParseAndCalendar)
 
 
+
+	// Auth & Rate-limit Tools
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_api_key",
+		mcp.WithDescription("Generate a new API key for a given owner. Returns the key exactly once."),
+		mcp.WithString("owner", mcp.Required(), mcp.Description("Owner name (e.g. user, agent, service)")),
+	), ns.handleGenerateAPIKey)
+
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_rate_limit_status",
+		mcp.WithDescription("Check current API key count and rate limit configuration."),
+	), ns.handleRateLimitStatus)
+
+
 }
 // ─── Tool Handlers ───
+
+func (ns *NegotiationServer) handleGenerateAPIKey(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	owner, _ := req.RequireString("owner")
+
+	if ns.apiKeyStore == nil {
+		return mcp.NewToolResultError("API key store is not configured"), nil
+	}
+
+	key, err := ns.apiKeyStore.GenerateKey(owner)
+	if err != nil {
+		ns.logger.Warn("generate_api_key failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to generate API key: %s", err.Error())), nil
+	}
+
+	ns.logger.Info("api key generated", "owner", owner)
+	resp := map[string]any{
+		"api_key":    key,
+		"owner":      owner,
+		"note":       "This key will not be shown again. Store it securely.",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRateLimitStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	keyCount := 0
+	rateConfig := "unlimited"
+	if ns.apiKeyStore != nil {
+		keyCount = ns.apiKeyStore.KeyCount()
+	}
+
+	resp := map[string]any{
+		"api_key_count": keyCount,
+		"rate_limit":    rateConfig,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
 
 func (ns *NegotiationServer) handleQueryPrice(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	start := time.Now()

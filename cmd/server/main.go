@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
@@ -19,7 +20,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
@@ -28,11 +29,13 @@ import (
 
 func main() {
 	var (
-		dbPath    = flag.String("db", filepath.Join(dataDir(), "negotiations.db"), "Path to SQLite database")
-		seedPath  = flag.String("seed", "", "Path to seed CSV file (optional)")
-		logFormat = flag.String("log", "json", "Log format: json or text")
-		httpAddr  = flag.String("http", "", "HTTP listen address for A2A endpoints (e.g. :8080)")
-	slackWebhook = flag.String("slack-webhook", "", "Slack webhook URL for negotiation alerts (optional)")
+		dbPath       = flag.String("db", filepath.Join(dataDir(), "negotiations.db"), "Path to SQLite database")
+		seedPath     = flag.String("seed", "", "Path to seed CSV file (optional)")
+		logFormat    = flag.String("log", "json", "Log format: json or text")
+		httpAddr     = flag.String("http", "", "HTTP listen address for A2A endpoints (e.g. :8080)")
+		slackWebhook = flag.String("slack-webhook", "", "Slack webhook URL for negotiation alerts (optional)")
+		apiKeysFile  = flag.String("api-keys", "", "Path to JSON file of API keys (optional, enables auth)")
+		rateLimit    = flag.Int("rate-limit", 0, "Max requests per minute per key (0 = unlimited)")
 	)
 	flag.Parse()
 
@@ -45,6 +48,24 @@ func main() {
 		logger = slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
 	slog.SetDefault(logger)
+
+	// Initialize API key store (optional)
+	var apiKeyStore *a2a.APIKeyStore
+	if *apiKeysFile != "" {
+		apiKeyStore = a2a.NewAPIKeyStore()
+		if err := apiKeyStore.LoadFromFile(*apiKeysFile); err != nil {
+			logger.Error("failed to load API keys", "path", *apiKeysFile, "error", err.Error())
+			os.Exit(1)
+		}
+		logger.Info("API key authentication enabled", "path", *apiKeysFile)
+	}
+
+	// Initialize rate limiter (optional)
+	var rateLimiter *a2a.RateLimiter
+	if *rateLimit > 0 {
+		rateLimiter = a2a.NewRateLimiter(*rateLimit, 1*time.Minute)
+		logger.Info("rate limiting enabled", "rate_per_minute", *rateLimit)
+	}
 
 	logger.Info("starting a2a-negotiation-mcp server",
 		"version", "1.0.0",
@@ -110,20 +131,20 @@ func main() {
 	}
 	calendarEngine := calendar.NewEngine(calendarStore, negEng, historyStore, pricingStore, logger)
 
-        // Initialize marketplace store and engine
-        marketplaceStore, err := marketplace.NewStore(pricingStore.DB())
-        if err != nil {
-                logger.Error("failed to initialize marketplace store", "error", err.Error())
-                os.Exit(1)
-        }
-        marketplaceEngine := marketplace.NewEngine(marketplaceStore, logger)
-        // Initialize health store (shares the same DB)
-        healthStore, err := health.NewStoreFromDB(pricingStore.DB())
-        if err != nil {
-                logger.Error("failed to initialize health store", "error", err.Error())
-                os.Exit(1)
-        }
-        healthEngine := health.NewEngine(healthStore, logger)
+	// Initialize marketplace store and engine
+	marketplaceStore, err := marketplace.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize marketplace store", "error", err.Error())
+		os.Exit(1)
+	}
+	marketplaceEngine := marketplace.NewEngine(marketplaceStore, logger)
+	// Initialize health store (shares the same DB)
+	healthStore, err := health.NewStoreFromDB(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize health store", "error", err.Error())
+		os.Exit(1)
+	}
+	healthEngine := health.NewEngine(healthStore, logger)
 
 	// Initialize SLA store and engine
 	slaStore, err := sla.NewStore(pricingStore.DB())
@@ -141,7 +162,7 @@ func main() {
 	}
 
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, slackClient, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, slackClient, apiKeyStore, logger)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -153,7 +174,7 @@ func main() {
 	// Start HTTP server if -http flag provided
 	if *httpAddr != "" {
 		baseURL := fmt.Sprintf("http://%s", *httpAddr)
-		a2aRouter := a2a.NewRouter(pricingStore, historyStore, mandateStore, logger, baseURL)
+		a2aRouter := a2a.NewRouter(pricingStore, historyStore, mandateStore, logger, baseURL, apiKeyStore, rateLimiter)
 		httpServer := &http.Server{
 			Addr:    *httpAddr,
 			Handler: a2aRouter,

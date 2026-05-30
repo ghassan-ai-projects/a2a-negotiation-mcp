@@ -2,6 +2,7 @@ package a2a
 
 import (
 	"log/slog"
+	"strconv"
 	"net/http"
 	"time"
 
@@ -10,7 +11,8 @@ import (
 )
 
 // NewRouter creates an http.Handler with all A2A routes registered.
-func NewRouter(pricingStore *pricing.Store, historyStore *history.Store, mandateStore *MandateStore, logger *slog.Logger, baseURL string) http.Handler {
+// apiKeyStore and rateLimiter are optional; pass nil to disable auth/rate-limiting.
+func NewRouter(pricingStore *pricing.Store, historyStore *history.Store, mandateStore *MandateStore, logger *slog.Logger, baseURL string, apiKeyStore *APIKeyStore, rateLimiter *RateLimiter) http.Handler {
 	handler := NewA2AHandler(pricingStore, historyStore, mandateStore, logger, baseURL)
 	mux := http.NewServeMux()
 
@@ -20,11 +22,60 @@ func NewRouter(pricingStore *pricing.Store, historyStore *history.Store, mandate
 	mux.HandleFunc("GET /.well-known/agent-card.json", handler.HandleAgentCard)
 
 	// Apply middleware chain
-	return withMiddleware(mux, logger)
+	return withMiddleware(mux, logger, apiKeyStore, rateLimiter)
 }
 
-// withMiddleware wraps a handler with CORS, logging, and correlation ID.
-func withMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
+// AuthMiddleware returns a middleware that validates X-API-Key against the store.
+// If the store is nil, auth is skipped.
+func AuthMiddleware(apiKeyStore *APIKeyStore) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if apiKeyStore == nil {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key := r.Header.Get("X-API-Key")
+			if key == "" {
+				http.Error(w, `{"error":"missing X-API-Key header"}`, http.StatusUnauthorized)
+				return
+			}
+			if _, ok := apiKeyStore.ValidateKey(key); !ok {
+				http.Error(w, `{"error":"invalid API key"}`, http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RateLimitMiddleware returns a middleware that rate-limits requests per key (or IP).
+// If the rate limiter is nil, rate-limiting is skipped.
+func RateLimitMiddleware(rateLimiter *RateLimiter) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		if rateLimiter == nil {
+			return next
+		}
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key := r.Header.Get("X-API-Key")
+			if key == "" {
+				// Fall back to client IP when no API key is present
+				key = r.RemoteAddr
+			}
+
+			allowed, remaining := rateLimiter.Allow(key)
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+
+			if !allowed {
+				http.Error(w, `{"error":"rate limit exceeded"}`, http.StatusTooManyRequests)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// withMiddleware wraps a handler with CORS, logging, correlation ID, auth, and rate-limiting.
+func withMiddleware(next http.Handler, logger *slog.Logger, apiKeyStore *APIKeyStore, rateLimiter *RateLimiter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Correlation ID
 		cid := r.Header.Get("X-Correlation-ID")
@@ -36,11 +87,38 @@ func withMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 		// CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Correlation-ID, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Correlation-ID, Authorization, X-API-Key")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
 			return
+		}
+
+		// Auth middleware
+		if apiKeyStore != nil {
+			key := r.Header.Get("X-API-Key")
+			if key == "" {
+				http.Error(w, `{"error":"missing X-API-Key header"}`, http.StatusUnauthorized)
+				return
+			}
+			if _, ok := apiKeyStore.ValidateKey(key); !ok {
+				http.Error(w, `{"error":"invalid API key"}`, http.StatusUnauthorized)
+				return
+			}
+		}
+
+		// Rate-limit middleware
+		if rateLimiter != nil {
+			key := r.Header.Get("X-API-Key")
+			if key == "" {
+				key = r.RemoteAddr
+			}
+			allowed, remaining := rateLimiter.Allow(key)
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+			if !allowed {
+				http.Error(w, `{"error":"rate limit exceeded"}`, http.StatusTooManyRequests)
+				return
+			}
 		}
 
 		// Request logging
