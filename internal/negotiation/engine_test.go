@@ -83,7 +83,7 @@ func TestCreateSession(t *testing.T) {
 	engine, _ := setupTest(t)
 	ctx := context.Background()
 
-	session, err := engine.CreateSession(ctx, "Slack", "Pro", "balanced", 0, nil)
+	session, err := engine.CreateSession(ctx, "Slack", "Pro", "balanced", 0, nil, "")
 	if err != nil {
 		t.Fatalf("CreateSession failed: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestCreateSession_InvalidStrategy(t *testing.T) {
 	engine, _ := setupTest(t)
 	ctx := context.Background()
 
-	_, err := engine.CreateSession(ctx, "Slack", "Pro", "crazy", 0, nil)
+	_, err := engine.CreateSession(ctx, "Slack", "Pro", "crazy", 0, nil, "")
 	if err == nil {
 		t.Fatal("expected error for invalid strategy")
 	}
@@ -117,7 +117,7 @@ func TestCreateSession_UnknownVendor(t *testing.T) {
 	engine, _ := setupTest(t)
 	ctx := context.Background()
 
-	_, err := engine.CreateSession(ctx, "NonExistent", "", "balanced", 0, nil)
+	_, err := engine.CreateSession(ctx, "NonExistent", "", "balanced", 0, nil, "")
 	if err == nil {
 		t.Fatal("expected error for unknown vendor")
 	}
@@ -128,7 +128,7 @@ func TestRunNegotiation_Accept(t *testing.T) {
 	ctx := context.Background()
 
 	// Create session with aggressive strategy (30% off 8.75 = 6.125)
-	session, err := engine.CreateSession(ctx, "Slack", "Pro", "aggressive", 0, nil)
+	session, err := engine.CreateSession(ctx, "Slack", "Pro", "aggressive", 0, nil, "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestRunNegotiation_BudgetAccept(t *testing.T) {
 	ctx := context.Background()
 
 	// Create session with balanced strategy + budget constraint
-	session, err := engine.CreateSession(ctx, "Slack", "Pro", "balanced", 7.00, nil)
+	session, err := engine.CreateSession(ctx, "Slack", "Pro", "balanced", 7.00, nil, "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestRunNegotiation_WalkAway(t *testing.T) {
 	engine, _ := setupTest(t)
 	ctx := context.Background()
 
-	session, err := engine.CreateSession(ctx, "Slack", "Pro", "balanced", 2.00, nil)
+	session, err := engine.CreateSession(ctx, "Slack", "Pro", "balanced", 2.00, nil, "")
 	if err != nil {
 		t.Fatalf("CreateSession: %v", err)
 	}

@@ -160,7 +160,7 @@ func (h *A2AHandler) HandleNegotiate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Create negotiation session
-	session, err := h.negotiationEng.CreateSession(ctx, req.Vendor, req.SKU, req.Strategy, req.Budget, req.Terms)
+	session, err := h.negotiationEng.CreateSession(ctx, req.Vendor, req.SKU, req.Strategy, req.Budget, req.Terms, "")
 	if err != nil {
 		h.logger.Warn("failed to create session", "error", err.Error())
 		writeJSON(w, http.StatusBadRequest, NegotiateResponse{

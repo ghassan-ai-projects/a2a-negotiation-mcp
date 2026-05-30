@@ -73,7 +73,7 @@ func setupParallelTest(t *testing.T) (*parallel.Engine, *pricing.Store, *history
 func createAndSaveSession(t *testing.T, ctx context.Context, negEng *negotiation.Engine, hstore *history.Store, vendor, sku, strategy string) string {
 	t.Helper()
 
-	session, err := negEng.CreateSession(ctx, vendor, sku, strategy, 0, nil)
+	session, err := negEng.CreateSession(ctx, vendor, sku, strategy, 0, nil, "")
 	if err != nil {
 		t.Fatalf("CreateSession(%s): %v", vendor, err)
 	}

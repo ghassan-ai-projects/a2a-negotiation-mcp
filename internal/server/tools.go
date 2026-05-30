@@ -420,6 +420,7 @@ func (ns *NegotiationServer) handleCreateSession(ctx context.Context, req mcp.Ca
 	vendor, _ := req.RequireString("vendor")
 	sku := req.GetString("sku", "")
 	strategyName, _ := req.RequireString("strategy")
+	culture := req.GetString("culture", "us")
 	budget := req.GetFloat("budget", 0)
 
 	rawConstraints, _ := req.GetArguments()["constraints"]
@@ -427,7 +428,7 @@ func (ns *NegotiationServer) handleCreateSession(ctx context.Context, req mcp.Ca
 
 	ns.logger.Debug("create_session called", "vendor", vendor, "sku", sku, "strategy", strategyName, "budget", budget)
 
-	session, err := ns.negotiationEng.CreateSession(ctx, vendor, sku, strategyName, budget, constraints)
+	session, err := ns.negotiationEng.CreateSession(ctx, vendor, sku, strategyName, budget, constraints, culture)
 	if err != nil {
 		ns.logger.Warn("create_session failed", "error", err.Error())
 		return mcp.NewToolResultError(fmt.Sprintf("Session creation failed: %s", err.Error())), nil
@@ -594,6 +595,18 @@ func (ns *NegotiationServer) handleStrategies(ctx context.Context, req mcp.CallT
 	return ns.jsonResult(resp)
 }
 
+func (ns *NegotiationServer) handleCulturalProfiles(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+        profiles := negotiation.ListCulturalProfiles()
+
+        resp := map[string]any{
+                "profiles":    profiles,
+                "count":       len(profiles),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
 func (ns *NegotiationServer) handleDiscoverOpportunities(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	start := time.Now()
 	businessName, _ := req.RequireString("business_name")
@@ -684,7 +697,7 @@ func (ns *NegotiationServer) handleRunParallel(ctx context.Context, req mcp.Call
 			sku = entry[idx+1:]
 		}
 
-		session, err := ns.negotiationEng.CreateSession(ctx, vendor, sku, strategy, 0, nil)
+		session, err := ns.negotiationEng.CreateSession(ctx, vendor, sku, strategy, 0, nil, "")
 		if err != nil {
 			ns.logger.Warn("run_parallel: failed to create session", "vendor", vendor, "error", err.Error())
 			return mcp.NewToolResultError(fmt.Sprintf("Session creation failed for %s: %s", vendor, err.Error())), nil

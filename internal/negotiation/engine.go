@@ -20,6 +20,7 @@ type Session struct {
 	Strategy       string         `json:"strategy"`
 	Budget         float64        `json:"budget,omitempty"`
 	Constraints    map[string]any `json:"constraints,omitempty"`
+	Culture        string         `json:"culture,omitempty"`
 	Status         string         `json:"status"`
 	CurrentOffer   float64        `json:"current_offer"`
 	ListPrice      float64        `json:"list_price"`
@@ -75,11 +76,16 @@ func (e *Engine) SetHealthEngine(he *health.Engine) {
 }
 
 // CreateSession initializes a new negotiation session.
-func (e *Engine) CreateSession(ctx context.Context, vendor, sku, strategyName string, budget float64, constraints map[string]any) (*Session, error) {
+func (e *Engine) CreateSession(ctx context.Context, vendor, sku, strategyName string, budget float64, constraints map[string]any, culture string) (*Session, error) {
 	strategy := GetStrategy(strategyName)
 	if strategy == nil {
 		return nil, ierrors.New(ierrors.ErrInvalidStrategy, "unknown strategy",
 			map[string]any{"strategy": strategyName})
+	}
+
+	// Apply cultural adjustments
+	if culture != "" {
+		ApplyCulturalAdjustment(strategy, culture)
 	}
 
 	var listPrice float64
@@ -106,6 +112,7 @@ func (e *Engine) CreateSession(ctx context.Context, vendor, sku, strategyName st
 		Strategy:       strategyName,
 		Budget:         budget,
 		Constraints:    constraints,
+		Culture:        culture,
 		Status:         "active",
 		CurrentOffer:   initialOffer,
 		ListPrice:      listPrice,

@@ -115,7 +115,7 @@ func (e *Engine) TriggerNegotiation(ctx context.Context, contractID string) (*ne
 	}
 
 	// Create a negotiation session
-	session, err := e.negEng.CreateSession(ctx, contract.Vendor, contract.SKU, "balanced", contract.CurrentPrice, nil)
+	session, err := e.negEng.CreateSession(ctx, contract.Vendor, contract.SKU, "balanced", contract.CurrentPrice, nil, "")
 	if err != nil {
 		// Revert status on failure
 		contract.Status = "active"
