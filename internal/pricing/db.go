@@ -326,3 +326,12 @@ func (s *Store) ListVendorsWithPricing(ctx context.Context) ([]string, error) {
 	}
 	return vendors, rows.Err()
 }
+
+// NewStoreFromDB creates a Store using an existing *sql.DB (for tests sharing a DB handle).
+func NewStoreFromDB(db *sql.DB) (*Store, error) {
+	s := &Store{db: db}
+	if err := s.migrate(); err != nil {
+		return nil, fmt.Errorf("migrate from db: %w", err)
+	}
+	return s, nil
+}

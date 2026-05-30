@@ -8,6 +8,7 @@ import (
 	"time"
         "strings"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
@@ -25,11 +26,12 @@ type NegotiationServer struct {
 	negotiationEng *negotiation.Engine
 	historyStore   *history.Store
 	minerEng       *miner.Engine
+	groupEng       *group.Engine
 	logger         *slog.Logger
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 
@@ -45,6 +47,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		negotiationEng: eng,
 		historyStore:   historyStore,
 		minerEng:       miningEng,
+		groupEng:       groupEngine,
 		logger:         logger,
 	}
 
@@ -111,6 +114,36 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithString("strategy", mcp.Required(), mcp.Description("Selection strategy: best_price, best_discount, or fastest")),
                 mcp.WithInteger("timeout", mcp.Description("Timeout per session in seconds (optional, default 30)")),
         ), ns.handleRunParallel)
+
+	// Tool 8: negotiate_create_group
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_create_group",
+		mcp.WithDescription("Create a collective buying group targeting a specific vendor SKU."),
+		mcp.WithString("target_vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("target_sku", mcp.Required(), mcp.Description("Product SKU")),
+		mcp.WithInteger("min_members", mcp.Description("Minimum members required (default 2)")),
+		mcp.WithInteger("expires_in_hours", mcp.Description("Group expiration in hours (default 72)")),
+	), ns.handleCreateGroup)
+
+	// Tool 9: negotiate_join_group
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_join_group",
+		mcp.WithDescription("Join an existing collective buying group."),
+		mcp.WithString("group_id", mcp.Required(), mcp.Description("Group ID")),
+		mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
+		mcp.WithInteger("quantity", mcp.Description("Number of seats/units")),
+		mcp.WithNumber("max_price", mcp.Description("Maximum price per unit (optional)")),
+	), ns.handleJoinGroup)
+
+	// Tool 10: negotiate_compute_offer
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_compute_offer",
+		mcp.WithDescription("Compute a consolidated collective buying offer for a group."),
+		mcp.WithString("group_id", mcp.Required(), mcp.Description("Group ID")),
+	), ns.handleComputeOffer)
+
+	// Tool 11: negotiate_group_status
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_group_status",
+		mcp.WithDescription("View buying group details and member list."),
+		mcp.WithString("group_id", mcp.Required(), mcp.Description("Group ID")),
+	), ns.handleGroupStatus)
 }
 
 // ─── Tool Handlers ───
@@ -524,6 +557,140 @@ func (ns *NegotiationServer) handleRunParallel(ctx context.Context, req mcp.Call
 		"total_rounds":       result.TotalRounds,
 		"all_results":        result.AllResults,
 		"duration_ms":        result.DurationMs,
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Collective Buying Group Handlers ───
+
+func (ns *NegotiationServer) handleCreateGroup(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("target_vendor")
+	sku, _ := req.RequireString("target_sku")
+	minMembers := int(req.GetInt("min_members", 2))
+	expiresInHours := int(req.GetInt("expires_in_hours", 72))
+
+	if minMembers < 1 {
+		minMembers = 1
+	}
+	if expiresInHours < 1 {
+		expiresInHours = 1
+	}
+
+	ns.logger.Debug("create_group called", "vendor", vendor, "sku", sku, "min_members", minMembers, "expires_in", expiresInHours)
+
+	group, err := ns.groupEng.CreateGroup(ctx, vendor, sku, minMembers, expiresInHours)
+	if err != nil {
+		ns.logger.Warn("create_group failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Group creation failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"group_id":      group.ID,
+		"target_vendor": group.TargetVendor,
+		"target_sku":    group.TargetSKU,
+		"min_members":   group.MinMembers,
+		"status":        group.Status,
+		"created_at":    group.CreatedAt.Format(time.RFC3339),
+		"expires_at":    group.ExpiresAt.Format(time.RFC3339),
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleJoinGroup(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	groupID, _ := req.RequireString("group_id")
+	userID, _ := req.RequireString("user_id")
+	quantity := int(req.GetInt("quantity", 1))
+	maxPrice := req.GetFloat("max_price", 0)
+
+	if quantity < 1 {
+		quantity = 1
+	}
+
+	ns.logger.Debug("join_group called", "group_id", groupID, "user_id", userID, "quantity", quantity)
+
+	member, err := ns.groupEng.JoinGroup(ctx, groupID, userID, quantity, maxPrice)
+	if err != nil {
+		ns.logger.Warn("join_group failed", "group_id", groupID, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Join group failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"membership_id": member.ID,
+		"group_id":      member.GroupID,
+		"user_id":       member.UserID,
+		"quantity":      member.Quantity,
+		"max_price":     member.MaxPrice,
+		"committed_at":  member.CommittedAt.Format(time.RFC3339),
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleComputeOffer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	groupID, _ := req.RequireString("group_id")
+
+	ns.logger.Debug("compute_offer called", "group_id", groupID)
+
+	offer, err := ns.groupEng.ComputeOffer(ctx, groupID)
+	if err != nil {
+		ns.logger.Warn("compute_offer failed", "group_id", groupID, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Compute offer failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"group_id":         offer.GroupID,
+		"vendor":           offer.Vendor,
+		"sku":              offer.SKU,
+		"total_demand":     offer.TotalDemand,
+		"member_count":     offer.MemberCount,
+		"list_price":       offer.ListPrice,
+		"offer_price":      offer.OfferPrice,
+		"savings_per_unit": offer.SavingsPerUnit,
+		"discount_pct":     offer.DiscountPct,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleGroupStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	groupID, _ := req.RequireString("group_id")
+
+	ns.logger.Debug("group_status called", "group_id", groupID)
+
+	group, err := ns.groupEng.GroupStore().GetGroup(ctx, groupID)
+	if err != nil {
+		ns.logger.Warn("group_status failed", "group_id", groupID, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Group lookup failed: %s", err.Error())), nil
+	}
+
+	members, err := ns.groupEng.GroupStore().GetMembers(ctx, groupID)
+	if err != nil {
+		ns.logger.Warn("group_status: failed to get members", "group_id", groupID, "error", err.Error())
+	}
+
+	resp := map[string]any{
+		"group": map[string]any{
+			"id":            group.ID,
+			"target_vendor": group.TargetVendor,
+			"target_sku":    group.TargetSKU,
+			"target_price":  group.TargetPrice,
+			"min_members":   group.MinMembers,
+			"status":        group.Status,
+			"created_at":    group.CreatedAt.Format(time.RFC3339),
+			"expires_at":    group.ExpiresAt.Format(time.RFC3339),
+		},
+		"members":       members,
+		"member_count":  len(members),
+		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }

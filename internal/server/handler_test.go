@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -32,7 +33,13 @@ func setupTest(t *testing.T) *NegotiationServer {
 	seedPricingData(t, pstore)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewNegotiationServer(pstore, hstore, logger)
+
+	gstore, err := group.NewStore(pstore.DB())
+	if err != nil {
+		t.Fatalf("group.NewStore: %v", err)
+	}
+	geng := group.NewEngine(gstore, pstore, logger)
+	return NewNegotiationServer(pstore, hstore, geng, logger)
 }
 
 func seedPricingData(t *testing.T, store *pricing.Store) {

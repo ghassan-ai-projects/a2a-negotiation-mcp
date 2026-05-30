@@ -12,6 +12,7 @@ import (
 	"syscall"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
@@ -74,8 +75,16 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize group store (shares the same DB) and engine
+	groupStore, err := group.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize group store", "error", err.Error())
+		os.Exit(1)
+	}
+	groupEngine := group.NewEngine(groupStore, pricingStore, logger)
+
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, logger)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
