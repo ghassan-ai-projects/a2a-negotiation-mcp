@@ -15,6 +15,11 @@ type Store struct {
 	db *sql.DB
 }
 
+// DB returns the underlying database connection.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
 // NewStore creates a HistoryStore using an existing DB connection.
 func NewStore(db *sql.DB) (*Store, error) {
 	s := &Store{db: db}

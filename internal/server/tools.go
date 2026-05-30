@@ -16,6 +16,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -32,12 +33,20 @@ type NegotiationServer struct {
 	sellEng        *sell.Engine
 	calendarEng    *calendar.Engine
 	logger         *slog.Logger
+	learningEng    *learning.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
 func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
+	learningEng, err := learning.NewEngine(historyStore, logger)
+	if err != nil {
+		logger.Error("failed to create learning engine", "error", err)
+		learningEng = nil
+	} else {
+		eng.SetLearningEngine(learningEng)
+	}
 
 	ns := &NegotiationServer{
 		mcpServer: mcpserver.NewMCPServer(
@@ -55,6 +64,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		sellEng:        sellEngine,
 		calendarEng:    calendarEngine,
 		logger:         logger,
+		learningEng:    learningEng,
 	}
 
 	ns.registerTools()
@@ -181,6 +191,16 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithString("contract_id", mcp.Required(), mcp.Description("Contract ID to negotiate")),
 	), ns.handleTriggerRenewal)
 
+	// Tool 16: negotiate_strategy_recommend
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_strategy_recommend",
+		mcp.WithDescription("Get the best negotiation strategy recommendation for a vendor based on past outcomes."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to get recommendation for")),
+	), ns.handleStrategyRecommend)
+
+	// Tool 17: negotiate_learning_insights
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_learning_insights",
+		mcp.WithDescription("Get global learning insights across all vendors — strategy performance breakdown and top vendors by deal count."),
+	), ns.handleLearningInsights)
 }
 
 // ─── Tool Handlers ───
@@ -1022,4 +1042,53 @@ func (ns *NegotiationServer) handleTriggerRenewal(ctx context.Context, req mcp.C
 		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
+}
+
+// ─── Learning / Strategy Recommendation Handlers ───
+
+func (ns *NegotiationServer) handleStrategyRecommend(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	vendor, _ := req.RequireString("vendor")
+
+	ns.logger.Debug("strategy_recommend called", "vendor", vendor)
+
+	if ns.learningEng == nil {
+		return mcp.NewToolResultError("Learning engine is not available"), nil
+	}
+
+	rec, err := ns.learningEng.GetRecommendation(ctx, vendor)
+	if err != nil {
+		ns.logger.Warn("strategy_recommend failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Recommendation failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":                rec.Vendor,
+		"recommended_strategy":  rec.RecommendedStrategy,
+		"confidence":            rec.Confidence,
+		"avg_discount_pct":      rec.AvgDiscount,
+		"total_deals":           rec.TotalDeals,
+		"breakdown":             rec.Breakdown,
+		"duration_ms":           time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleLearningInsights(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("learning_insights called")
+
+	if ns.learningEng == nil {
+		return mcp.NewToolResultError("Learning engine is not available"), nil
+	}
+
+	insights, err := ns.learningEng.GetGlobalInsights(ctx)
+	if err != nil {
+		ns.logger.Warn("learning_insights failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Insights query failed: %s", err.Error())), nil
+	}
+
+	insights["duration_ms"] = time.Since(start).Milliseconds()
+	return ns.jsonResult(insights)
 }

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ierrors"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 )
 
@@ -50,14 +51,20 @@ type NegotiateResult struct {
 	TotalDiscount  float64 `json:"total_discount_pct"`
 }
 
-// Engine runs the negotiation strategy.
+// Engine runs the negotiation strategy and optionally records learning outcomes.
 type Engine struct {
 	pricingStore *pricing.Store
+	learningEng  *learning.Engine
 }
 
 // NewEngine creates a new negotiation engine.
 func NewEngine(pricingStore *pricing.Store) *Engine {
 	return &Engine{pricingStore: pricingStore}
+}
+
+// SetLearningEngine attaches a learning engine to automatically record outcomes.
+func (e *Engine) SetLearningEngine(le *learning.Engine) {
+	e.learningEng = le
 }
 
 // CreateSession initializes a new negotiation session.
@@ -228,6 +235,25 @@ func (e *Engine) RunNegotiation(ctx context.Context, session *Session, maxRounds
 		ListPrice:      session.ListPrice,
 		TotalDiscount:  math.Round(totalDiscount*10000) / 10000,
 	}
+
+	// Record learning outcome for accepted/walked_away negotiations
+	if e.learningEng != nil && (session.Outcome == "accepted" || session.Outcome == "walked_away") {
+		outcome := learning.StrategyOutcome{
+			Vendor:         session.Vendor,
+			SKU:            session.SKU,
+			Strategy:       session.Strategy,
+			DiscountPct:    result.TotalDiscount,
+			RoundsComplete: session.RoundsComplete,
+			Outcome:        session.Outcome,
+			BudgetUsed:     session.Budget,
+			TotalBefore:    session.ListPrice,
+			TotalAfter:     session.CurrentOffer,
+			Timestamp:      time.Now().UTC(),
+		}
+		// Non-fatal — log but don't fail the negotiation
+		_ = e.learningEng.RecordOutcome(ctx, outcome)
+	}
+
 	return result, rounds, nil
 }
 
