@@ -65,3 +65,13 @@ type MarketRange struct {
 	Average float64 `json:"average"`
 	Count   int     `json:"count"`
 }
+
+// ModelResult is a single AI model pricing result for the negotiate_find_cheapest_model tool.
+type ModelResult struct {
+	Vendor       string   `json:"vendor"`
+	SKU          string   `json:"sku"`
+	Description  string   `json:"description"`
+	PricePerUnit float64  `json:"price_per_unit"`
+	Unit         string   `json:"unit"`
+	TaskTypes    []string `json:"task_types"`
+}

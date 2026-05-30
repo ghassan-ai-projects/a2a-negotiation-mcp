@@ -343,6 +343,15 @@ func (ns *NegotiationServer) registerTools() {
 	), ns.handleRateLimitStatus)
 
 
+	// Tool: negotiate_find_cheapest_model
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_find_cheapest_model",
+		mcp.WithDescription("Find the cheapest AI model for a given task type. Returns models sorted by price per 1M input tokens, with optional budget and latency filters."),
+		mcp.WithString("task_type", mcp.Required(), mcp.Description("Task type: chat, reasoning, vision, audio, code, or image_generation")),
+		mcp.WithNumber("budget", mcp.Description("Maximum budget per 1M input tokens (optional)")),
+		mcp.WithNumber("max_latency_ms", mcp.Description("Maximum latency in milliseconds (optional)")),
+	), ns.handleFindCheapestModel)
+
+
 }
 // ─── Tool Handlers ───
 
@@ -706,6 +715,112 @@ func (ns *NegotiationServer) handleDiscoverOpportunities(ctx context.Context, re
 	}
 	return ns.jsonResult(resp)
 }
+
+// modelTaskTypes maps AI model SKUs to their compatible task types.
+var modelTaskTypes = map[string][]string{
+	"gpt-4o":              {"chat", "vision", "code"},
+	"gpt-4o-mini":         {"chat", "code"},
+	"gpt-4o-audio":        {"audio"},
+	"o1":                  {"reasoning", "code"},
+	"o1-mini":             {"reasoning", "code"},
+	"dall-e-3":            {"image_generation"},
+	"whisper-1":           {"audio"},
+	"tts-1":               {"audio"},
+	"claude-3.5-sonnet":   {"chat", "vision", "code"},
+	"claude-3-opus":       {"chat", "reasoning", "code"},
+	"claude-3-haiku":      {"chat", "code"},
+	"gemini-2.5-flash":    {"chat", "vision", "code"},
+	"gemini-2.5-pro":      {"chat", "reasoning", "vision", "code"},
+	"gemini-2.0-flash":    {"chat", "vision", "code"},
+	"deepseek-v4":         {"chat", "reasoning", "code"},
+	"deepseek-r1":         {"reasoning", "code"},
+	"deepseek-chat":       {"chat", "code"},
+	"mistral-large":       {"chat", "code"},
+	"mistral-small":       {"chat", "code"},
+	"command-r-plus":      {"chat", "code"},
+	"command-r":           {"chat", "code"},
+}
+
+// ─── Find Cheapest Model Handler ───
+
+func (ns *NegotiationServer) handleFindCheapestModel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	taskType, _ := req.RequireString("task_type")
+	budget := req.GetFloat("budget", 0)
+	maxLatency := req.GetFloat("max_latency_ms", 0)
+
+	ns.logger.Debug("find_cheapest_model called", "task_type", taskType, "budget", budget, "max_latency_ms", maxLatency)
+
+	// Validate task_type
+	validTasks := map[string]bool{"chat": true, "reasoning": true, "vision": true, "audio": true, "code": true, "image_generation": true}
+	if !validTasks[taskType] {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid task_type: %q. Valid values: chat, reasoning, vision, audio, code, image_generation", taskType)), nil
+	}
+
+	// Query all AI models from the pricing store
+	pricingResults, err := ns.pricingStore.ListPricingByCategory(ctx, "ai")
+	if err != nil {
+		ns.logger.Warn("find_cheapest_model failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to query AI models: %s", err.Error())), nil
+	}
+
+	// Build ModelResult list, filter by task type and budget
+	var models []pricing.ModelResult
+	for _, pr := range pricingResults {
+		taskTypes, ok := modelTaskTypes[pr.SKU]
+		if !ok {
+			continue
+		}
+
+		// Filter by task_type
+		matchesTask := false
+		for _, tt := range taskTypes {
+			if tt == taskType {
+				matchesTask = true
+				break
+			}
+		}
+		if !matchesTask {
+			continue
+		}
+
+		// Filter by budget (compare against min_observed which is MarketMin)
+		if budget > 0 && pr.MarketMin > budget {
+			continue
+		}
+
+		models = append(models, pricing.ModelResult{
+			Vendor:       pr.Vendor,
+			SKU:          pr.SKU,
+			Description:  pr.Description,
+			PricePerUnit: pr.MarketMin,
+			Unit:         "/1M_input_tokens",
+			TaskTypes:    taskTypes,
+		})
+	}
+
+	// Sort by price ascending (bubble sort for simplicity)
+	for i := 0; i < len(models); i++ {
+		for j := i + 1; j < len(models); j++ {
+			if models[j].PricePerUnit < models[i].PricePerUnit {
+				models[i], models[j] = models[j], models[i]
+			}
+		}
+	}
+
+	if models == nil {
+		models = []pricing.ModelResult{}
+	}
+
+	resp := map[string]any{
+		"task_type":   taskType,
+		"models":      models,
+		"count":       len(models),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
 
 func (ns *NegotiationServer) jsonResult(data map[string]any) (*mcp.CallToolResult, error) {
 	b, err := json.Marshal(data)

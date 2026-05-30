@@ -136,3 +136,24 @@ Cloudinary,Advanced,Cloudinary Image/Video Advanced per month,249.00,174.00,224.
 Snowflake,Standard,Snowflake Standard per credit,4.00,2.80,3.60,15,credit,analytics
 Snowflake,Enterprise,Snowflake Enterprise per credit,6.00,4.20,5.40,15,credit,analytics
 Snowflake,Business Critical,Snowflake Business Critical per credit,8.00,5.60,7.20,15,credit,analytics
+OpenAI,gpt-4o,OpenAI GPT-4o per 1M input tokens,10.00,2.50,10.00,15,/1M_input_tokens,ai
+OpenAI,gpt-4o-mini,OpenAI GPT-4o-mini per 1M input tokens,0.60,0.15,0.60,15,/1M_input_tokens,ai
+OpenAI,gpt-4o-audio,OpenAI GPT-4o-audio per 1M input tokens,10.00,2.50,10.00,15,/1M_input_tokens,ai
+OpenAI,o1,OpenAI o1 per 1M input tokens,60.00,15.00,60.00,15,/1M_input_tokens,ai
+OpenAI,o1-mini,OpenAI o1-mini per 1M input tokens,4.40,1.10,4.40,15,/1M_input_tokens,ai
+OpenAI,dall-e-3,OpenAI DALL-E 3 per image,0.120,0.040,0.120,15,/image,ai
+OpenAI,whisper-1,OpenAI Whisper-1 per minute,0.006,0.006,0.006,15,/minute,ai
+OpenAI,tts-1,OpenAI TTS-1 per 1K characters,0.015,0.015,0.015,15,/1K_characters,ai
+Anthropic,claude-3.5-sonnet,Anthropic Claude 3.5 Sonnet per 1M input tokens,15.00,3.00,15.00,15,/1M_input_tokens,ai
+Anthropic,claude-3-opus,Anthropic Claude 3 Opus per 1M input tokens,75.00,15.00,75.00,15,/1M_input_tokens,ai
+Anthropic,claude-3-haiku,Anthropic Claude 3 Haiku per 1M input tokens,1.25,0.25,1.25,15,/1M_input_tokens,ai
+Google,gemini-2.5-flash,Google Gemini 2.5 Flash per 1M input tokens,0.60,0.15,0.60,15,/1M_input_tokens,ai
+Google,gemini-2.5-pro,Google Gemini 2.5 Pro per 1M input tokens,5.00,1.25,5.00,15,/1M_input_tokens,ai
+Google,gemini-2.0-flash,Google Gemini 2.0 Flash per 1M input tokens,0.40,0.10,0.40,15,/1M_input_tokens,ai
+DeepSeek,deepseek-v4,DeepSeek V4 per 1M input tokens,2.00,0.50,2.00,15,/1M_input_tokens,ai
+DeepSeek,deepseek-r1,DeepSeek R1 per 1M input tokens,2.19,0.55,2.19,15,/1M_input_tokens,ai
+DeepSeek,deepseek-chat,DeepSeek Chat per 1M input tokens,1.10,0.27,1.10,15,/1M_input_tokens,ai
+Mistral,mistral-large,Mistral Large per 1M input tokens,6.00,2.00,6.00,15,/1M_input_tokens,ai
+Mistral,mistral-small,Mistral Small per 1M input tokens,0.60,0.20,0.60,15,/1M_input_tokens,ai
+Cohere,command-r-plus,Cohere Command R+ per 1M input tokens,10.00,2.50,10.00,15,/1M_input_tokens,ai
+Cohere,command-r,Cohere Command R per 1M input tokens,2.00,0.50,2.00,15,/1M_input_tokens,ai

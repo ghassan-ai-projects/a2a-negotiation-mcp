@@ -328,6 +328,40 @@ func (s *Store) ListVendorsWithPricing(ctx context.Context) ([]string, error) {
 }
 
 // NewStoreFromDB creates a Store using an existing *sql.DB (for tests sharing a DB handle).
+
+// ListPricingByCategory returns all pricing data points for vendors in a given category.
+func (s *Store) ListPricingByCategory(ctx context.Context, category string) ([]PriceQueryResult, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT p.sku, p.description, p.list_price, p.min_observed, p.max_observed,
+			   p.typical_pct, p.unit, v.name
+		FROM pricing_snapshot p
+		JOIN vendors v ON v.id = p.vendor_id
+		WHERE v.category = ?
+		ORDER BY v.name, p.sku
+	`, category)
+	if err != nil {
+		return nil, fmt.Errorf("query pricing by category: %w", err)
+	}
+	defer rows.Close()
+
+	var results []PriceQueryResult
+	for rows.Next() {
+		var r PriceQueryResult
+		var unit string
+		if err := rows.Scan(&r.SKU, &r.Description, &r.ListPrice,
+			&r.MarketMin, &r.MarketMax, &r.TypicalPct,
+			&unit, &r.Vendor); err != nil {
+			return nil, fmt.Errorf("scan pricing row: %w", err)
+		}
+		r.DataPoints = 0
+		r.Confidence = "low"
+		r.SuggestedMin = r.MarketMin
+		r.SuggestedMax = r.MarketMax
+		results = append(results, r)
+	}
+	return results, rows.Err()
+}
+
 func NewStoreFromDB(db *sql.DB) (*Store, error) {
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {

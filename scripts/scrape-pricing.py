@@ -224,6 +224,94 @@ VENDORS: dict[str, dict[str, Any]] = {
         "url": "https://www.okta.com/pricing",
         "fallback_scanner": True,
     },
+    "OpenAI": {
+        "url": "https://openai.com/api/pricing",
+        "fallback_scanner": True,
+    },
+    "Anthropic": {
+        "url": "https://anthropic.com/pricing",
+        "fallback_scanner": True,
+    },
+    "Google": {
+        "url": "https://ai.google.dev/pricing",
+        "fallback_scanner": True,
+    },
+    "DeepSeek": {
+        "url": "https://deepseek.com/pricing",
+        "fallback_scanner": True,
+    },
+    "Mistral": {
+        "url": "https://mistral.ai/pricing",
+        "fallback_scanner": True,
+    },
+    "Cohere": {
+        "url": "https://cohere.com/pricing",
+        "fallback_scanner": True,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Specialized scrapers for AI model providers
+# These handle per-token and per-character pricing, normalizing to
+# per-1M-input-tokens equivalent.
+# ---------------------------------------------------------------------------
+
+# Token-to-character ratio for Google's per-character pricing.
+# ~1 token ≈ 4 characters in English text.
+_CHARS_PER_TOKEN = 4.0
+
+
+def scrape_openai_pricing() -> list[ScrapedPlan]:
+    """Scrape OpenAI API pricing and normalize to per-1M-input-tokens."""
+    config = VENDORS["OpenAI"]
+    html = fetch(config["url"])
+    if not html:
+        return []
+    soup = BeautifulSoup(html, "lxml")
+    results = _generic_scan(soup)
+    for r in results:
+        r.vendor = "OpenAI"
+    return results
+
+
+def scrape_anthropic_pricing() -> list[ScrapedPlan]:
+    """Scrape Anthropic API pricing and normalize to per-1M-input-tokens."""
+    config = VENDORS["Anthropic"]
+    html = fetch(config["url"])
+    if not html:
+        return []
+    soup = BeautifulSoup(html, "lxml")
+    results = _generic_scan(soup)
+    for r in results:
+        r.vendor = "Anthropic"
+    return results
+
+
+def scrape_google_pricing() -> list[ScrapedPlan]:
+    """Scrape Google AI API pricing.
+    Google prices are per-character. This function normalizes them
+    to a per-1M-input-tokens equivalent using a 1-token ≈ 4-char ratio.
+    """
+    config = VENDORS["Google"]
+    html = fetch(config["url"])
+    if not html:
+        return []
+    soup = BeautifulSoup(html, "lxml")
+    results = _generic_scan(soup)
+    for r in results:
+        r.vendor = "Google"
+        if r.list_price is not None and "character" in r.unit.lower():
+            # Normalize per-character → per-token → per-1M-tokens
+            r.list_price = round(r.list_price * _CHARS_PER_TOKEN * 1_000_000, 6)
+            r.unit = "/1M_input_tokens"
+    return results
+
+
+# Specialized scraper dispatch: name → function
+_SPECIALIZED_SCRAPERS: dict[str, callable] = {
+    "OpenAI": scrape_openai_pricing,
+    "Anthropic": scrape_anthropic_pricing,
+    "Google": scrape_google_pricing,
 }
 
 # ---------------------------------------------------------------------------
@@ -706,6 +794,12 @@ def _infer_category(vendor: str) -> str:
         "Auth0": "security",
         "Okta": "security",
         "Stripe": "analytics",
+        "OpenAI": "ai",
+        "Anthropic": "ai",
+        "Google": "ai",
+        "DeepSeek": "ai",
+        "Mistral": "ai",
+        "Cohere": "ai",
     }
     return CAT_MAP.get(vendor, "analytics")
 
@@ -718,7 +812,17 @@ def _infer_category(vendor: str) -> str:
 def scrape_vendor(
     vendor_name: str, html_cache: dict[str, str | None]
 ) -> list[ScrapedPlan]:
-    """Scrape a single vendor: fetch, extract, and return plans."""
+    """Scrape a single vendor: fetch, extract, and return plans.
+    
+    If the vendor has a specialized scraper (e.g. for AI model pricing),
+    it is used instead of the generic fetch+extract pipeline.
+    """
+    # Check for specialized scraper first
+    specialized = _SPECIALIZED_SCRAPERS.get(vendor_name)
+    if specialized:
+        log.info("  Using specialized scraper for %s ...", vendor_name)
+        return specialized()
+
     config = VENDORS.get(vendor_name)
     if not config:
         log.error("Unknown vendor: %s", vendor_name)

@@ -86,6 +86,16 @@ func seedPricingData(t *testing.T, store *pricing.Store) {
 		{"Slack", "Communication", "Pro", "Pro plan", 8.75, 6.50, 8.00, 18, "per_seat_month"},
 		{"GitHub", "Developer", "Team", "Team plan", 4.00, 3.00, 3.80, 15, "per_seat_month"},
 		{"Salesforce", "CRM", "Enterprise", "Enterprise per seat", 165.00, 110.00, 155.00, 28, "per_seat_month"},
+		{"OpenAI", "ai", "gpt-4o", "OpenAI GPT-4o", 10.00, 2.50, 10.00, 15, "/1M_input_tokens"},
+		{"OpenAI", "ai", "gpt-4o-mini", "OpenAI GPT-4o-mini", 0.60, 0.15, 0.60, 15, "/1M_input_tokens"},
+		{"OpenAI", "ai", "o1", "OpenAI o1", 60.00, 15.00, 60.00, 15, "/1M_input_tokens"},
+		{"Anthropic", "ai", "claude-3.5-sonnet", "Anthropic Claude 3.5 Sonnet", 15.00, 3.00, 15.00, 15, "/1M_input_tokens"},
+		{"Google", "ai", "gemini-2.5-flash", "Google Gemini 2.5 Flash", 0.60, 0.15, 0.60, 15, "/1M_input_tokens"},
+		{"DeepSeek", "ai", "deepseek-chat", "DeepSeek Chat", 1.10, 0.27, 1.10, 15, "/1M_input_tokens"},
+		{"Mistral", "ai", "mistral-small", "Mistral Small", 0.60, 0.20, 0.60, 15, "/1M_input_tokens"},
+		{"OpenAI", "ai", "dall-e-3", "OpenAI DALL-E 3", 0.120, 0.040, 0.120, 15, "/image"},
+
+
 	}
 
 	for _, v := range vendors {
@@ -750,4 +760,124 @@ func TestOpportunitiesResource_KnownIndustry(t *testing.T) {
 		t.Errorf("expected industry tech, got %v", resp["industry"])
 	}
 	_ = opps
+}
+
+func TestHandleFindCheapestModel_Chat(t *testing.T) {
+	ns := setupTest(t)
+	ctx := context.Background()
+
+	req := toolRequest("negotiate_find_cheapest_model", map[string]any{
+		"task_type": "chat",
+	})
+	result, err := ns.handleFindCheapestModel(ctx, req)
+	if err != nil {
+		t.Fatalf("handleFindCheapestModel: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+
+	var resp map[string]any
+	parseJSON(t, extractText(t, result), &resp)
+
+	if resp["task_type"] != "chat" {
+		t.Errorf("expected task_type chat, got %v", resp["task_type"])
+	}
+	models, ok := resp["models"].([]any)
+	if !ok || len(models) == 0 {
+		t.Fatalf("expected at least one model, got %v", resp["models"])
+	}
+
+	// Verify ordering: cheapest first
+	var prevPrice float64
+	for i, m := range models {
+		model := m.(map[string]any)
+		price, ok := model["price_per_unit"].(float64)
+		if !ok {
+			t.Fatalf("model[%d] missing price_per_unit", i)
+		}
+		if i > 0 && price < prevPrice {
+			t.Errorf("models not sorted by price: model[%d]=%f < model[%d]=%f", i, price, i-1, prevPrice)
+		}
+		prevPrice = price
+	}
+}
+
+func TestHandleFindCheapestModel_WithBudget(t *testing.T) {
+	ns := setupTest(t)
+	ctx := context.Background()
+
+	req := toolRequest("negotiate_find_cheapest_model", map[string]any{
+		"task_type": "chat",
+		"budget":    1.0,
+	})
+	result, err := ns.handleFindCheapestModel(ctx, req)
+	if err != nil {
+		t.Fatalf("handleFindCheapestModel: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+
+	var resp map[string]any
+	parseJSON(t, extractText(t, result), &resp)
+
+	models, ok := resp["models"].([]any)
+	if !ok {
+		t.Fatalf("expected models array, got %v", resp["models"])
+	}
+
+	for i, m := range models {
+		model := m.(map[string]any)
+		price, ok := model["price_per_unit"].(float64)
+		if !ok {
+			t.Fatalf("model[%d] missing price_per_unit", i)
+		}
+		if price > 1.0 {
+			t.Errorf("model[%d] price %f exceeds budget 1.0", i, price)
+		}
+	}
+}
+
+func TestHandleFindCheapestModel_InvalidTaskType(t *testing.T) {
+	ns := setupTest(t)
+	ctx := context.Background()
+
+	req := toolRequest("negotiate_find_cheapest_model", map[string]any{
+		"task_type": "invalid_task",
+	})
+	result, err := ns.handleFindCheapestModel(ctx, req)
+	if err != nil {
+		t.Fatalf("handleFindCheapestModel: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected error for invalid task_type, got success")
+	}
+}
+
+func TestHandleFindCheapestModel_ImageGeneration(t *testing.T) {
+	ns := setupTest(t)
+	ctx := context.Background()
+
+	req := toolRequest("negotiate_find_cheapest_model", map[string]any{
+		"task_type": "image_generation",
+	})
+	result, err := ns.handleFindCheapestModel(ctx, req)
+	if err != nil {
+		t.Fatalf("handleFindCheapestModel: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error: %s", extractText(t, result))
+	}
+
+	var resp map[string]any
+	parseJSON(t, extractText(t, result), &resp)
+
+	models, ok := resp["models"].([]any)
+	if !ok {
+		t.Fatalf("expected models array, got %v", resp["models"])
+	}
+	if len(models) == 0 {
+		t.Fatal("expected at least one model for image_generation")
+	}
 }
