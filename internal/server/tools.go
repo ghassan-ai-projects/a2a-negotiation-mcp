@@ -17,6 +17,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -34,10 +35,11 @@ type NegotiationServer struct {
 	calendarEng    *calendar.Engine
 	logger         *slog.Logger
 	learningEng    *learning.Engine
+        marketplaceEng *marketplace.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, marketplaceEngine *marketplace.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -65,6 +67,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		calendarEng:    calendarEngine,
 		logger:         logger,
 		learningEng:    learningEng,
+                marketplaceEng: marketplaceEngine,
 	}
 
 	ns.registerTools()
@@ -201,6 +204,47 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_learning_insights",
 		mcp.WithDescription("Get global learning insights across all vendors — strategy performance breakdown and top vendors by deal count."),
 	), ns.handleLearningInsights)
+
+        // Tool 18: negotiate_list_unused_seats
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_unused_seats",
+                mcp.WithDescription("List unused SaaS seats for sale on the marketplace. Ask price must be below original list price."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
+                mcp.WithInteger("seats", mcp.Required(), mcp.Description("Number of unused seats available")),
+                mcp.WithNumber("orig_price", mcp.Required(), mcp.Description("Original per-seat price")),
+                mcp.WithNumber("ask_price", mcp.Required(), mcp.Description("Asking price per seat")),
+                mcp.WithNumber("min_price", mcp.Description("Minimum (walk-away) price per seat")),
+                mcp.WithInteger("expires_in_hours", mcp.Description("Listing duration in hours (default: 168)")),
+        ), ns.handleListUnusedSeats)
+
+        // Tool 19: negotiate_search_used
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_search_used",
+                mcp.WithDescription("Search for unused SaaS seat listings for a vendor/SKU, sorted by ask price ascending."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to search for")),
+                mcp.WithString("sku", mcp.Description("SKU filter (optional)")),
+                mcp.WithInteger("max_seats", mcp.Description("Maximum seats filter (optional)")),
+        ), ns.handleSearchUsed)
+
+        // Tool 20: negotiate_offer_seats
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_offer_seats",
+                mcp.WithDescription("Place a buy offer on a used-seats listing. Auto-accepts if ask price is within your max price."),
+                mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID to make an offer on")),
+                mcp.WithString("buyer_id", mcp.Required(), mcp.Description("Buyer identifier")),
+                mcp.WithInteger("seats", mcp.Required(), mcp.Description("Number of seats to buy")),
+                mcp.WithNumber("max_price", mcp.Required(), mcp.Description("Maximum price per seat you are willing to pay")),
+        ), ns.handleOfferSeats)
+
+        // Tool 21: negotiate_accept_offer
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_accept_offer",
+                mcp.WithDescription("Accept a pending offer on a listing. Creates a transaction with 5% platform fee and marks listing as completed."),
+                mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID")),
+                mcp.WithString("offer_id", mcp.Required(), mcp.Description("Offer ID to accept")),
+        ), ns.handleAcceptOffer)
+
+        // Tool 22: negotiate_marketplace_overview
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_marketplace_overview",
+                mcp.WithDescription("Get marketplace overview: active listings count and recent transactions."),
+        ), ns.handleMarketplaceOverview)
 }
 
 // ─── Tool Handlers ───
@@ -1091,4 +1135,144 @@ func (ns *NegotiationServer) handleLearningInsights(ctx context.Context, req mcp
 
 	insights["duration_ms"] = time.Since(start).Milliseconds()
 	return ns.jsonResult(insights)
+}
+
+// ─── Marketplace Handlers ───
+
+func (ns *NegotiationServer) handleListUnusedSeats(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	sku, _ := req.RequireString("sku")
+	seats := int(req.GetInt("seats", 0))
+	origPrice := req.GetFloat("orig_price", 0)
+	askPrice := req.GetFloat("ask_price", 0)
+	minPrice := req.GetFloat("min_price", 0)
+	expiresInHours := int(req.GetInt("expires_in_hours", 168))
+
+	ns.logger.Debug("list_unused_seats called", "vendor", vendor, "sku", sku, "seats", seats)
+
+	listing, err := ns.marketplaceEng.ListSeats(ctx, vendor, sku, seats, origPrice, askPrice, minPrice, expiresInHours)
+	if err != nil {
+		ns.logger.Warn("list_unused_seats failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("List seats failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"listing_id":  listing.ID,
+		"vendor":      listing.Vendor,
+		"sku":         listing.SKU,
+		"seats":       listing.Seats,
+		"orig_price":  listing.OrigPrice,
+		"ask_price":   listing.AskPrice,
+		"min_price":   listing.MinPrice,
+		"status":      listing.Status,
+		"created_at":  listing.CreatedAt.Format(time.RFC3339),
+		"expires_at":  listing.ExpiresAt.Format(time.RFC3339),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSearchUsed(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	sku := req.GetString("sku", "")
+	maxSeats := int(req.GetInt("max_seats", 0))
+
+	ns.logger.Debug("search_used called", "vendor", vendor, "sku", sku, "max_seats", maxSeats)
+
+	listings, err := ns.marketplaceEng.Search(ctx, vendor, sku, maxSeats)
+	if err != nil {
+		ns.logger.Warn("search_used failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Search failed: %s", err.Error())), nil
+	}
+
+	if listings == nil {
+		listings = []marketplace.Listing{}
+	}
+
+	resp := map[string]any{
+		"listings":    listings,
+		"count":       len(listings),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleOfferSeats(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	listingID, _ := req.RequireString("listing_id")
+	buyerID, _ := req.RequireString("buyer_id")
+	seats := int(req.GetInt("seats", 0))
+	maxPrice := req.GetFloat("max_price", 0)
+
+	ns.logger.Debug("offer_seats called", "listing_id", listingID, "buyer_id", buyerID, "seats", seats, "max_price", maxPrice)
+
+	offer, err := ns.marketplaceEng.MakeOffer(ctx, listingID, buyerID, seats, maxPrice)
+	if err != nil {
+		ns.logger.Warn("offer_seats failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Offer failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"offer_id":    offer.ID,
+		"listing_id":  offer.ListingID,
+		"buyer_id":    offer.BuyerID,
+		"seats":       offer.Seats,
+		"max_price":   offer.MaxPrice,
+		"status":      offer.Status,
+		"created_at":  offer.CreatedAt.Format(time.RFC3339),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAcceptOffer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	listingID, _ := req.RequireString("listing_id")
+	offerID, _ := req.RequireString("offer_id")
+
+	ns.logger.Debug("accept_offer called", "listing_id", listingID, "offer_id", offerID)
+
+	txn, err := ns.marketplaceEng.AcceptOffer(ctx, listingID, offerID)
+	if err != nil {
+		ns.logger.Warn("accept_offer failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Accept offer failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"transaction_id": txn.ID,
+		"listing_id":     txn.ListingID,
+		"vendor":         txn.Vendor,
+		"sku":            txn.SKU,
+		"seats":          txn.Seats,
+		"price_per_seat": txn.PricePerSeat,
+		"total":          txn.Total,
+		"platform_fee":   txn.PlatformFee,
+		"seller_id":      txn.SellerID,
+		"buyer_id":       txn.BuyerID,
+		"status":         txn.Status,
+		"created_at":     txn.CreatedAt.Format(time.RFC3339),
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleMarketplaceOverview(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("marketplace_overview called")
+
+	overview, err := ns.marketplaceEng.Overview(ctx)
+	if err != nil {
+		ns.logger.Warn("marketplace_overview failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Overview failed: %s", err.Error())), nil
+	}
+
+	overview["duration_ms"] = time.Since(start).Milliseconds()
+	return ns.jsonResult(overview)
 }
