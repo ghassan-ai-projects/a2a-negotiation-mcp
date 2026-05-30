@@ -15,6 +15,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -83,8 +84,16 @@ func main() {
 	}
 	groupEngine := group.NewEngine(groupStore, pricingStore, logger)
 
+	// Initialize sell store and engine
+	sellStore, err := sell.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize sell store", "error", err.Error())
+		os.Exit(1)
+	}
+	sellEngine := sell.NewEngine(sellStore, logger)
+
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, logger)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

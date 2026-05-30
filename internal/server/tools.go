@@ -14,6 +14,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -27,11 +28,12 @@ type NegotiationServer struct {
 	historyStore   *history.Store
 	minerEng       *miner.Engine
 	groupEng       *group.Engine
+	sellEng        *sell.Engine
 	logger         *slog.Logger
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 
@@ -48,6 +50,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		historyStore:   historyStore,
 		minerEng:       miningEng,
 		groupEng:       groupEngine,
+		sellEng:        sellEngine,
 		logger:         logger,
 	}
 
@@ -691,6 +694,168 @@ func (ns *NegotiationServer) handleGroupStatus(ctx context.Context, req mcp.Call
 		"members":       members,
 		"member_count":  len(members),
 		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+
+// ─── Sell-Side Handlers ───
+
+func (ns *NegotiationServer) handleListItem(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	title, _ := req.RequireString("title")
+	desiredPrice := req.GetFloat("desired_price", 0)
+	strategy, _ := req.RequireString("strategy")
+	minPrice := req.GetFloat("min_price", 0)
+	expiresInHours := int(req.GetInt("expires_in_hours", 0))
+
+	// Default user_id for MCP context (actual auth would come from client)
+	userID := req.GetString("user_id", "anonymous")
+
+	ns.logger.Debug("list_item called", "title", title, "strategy", strategy, "desired_price", desiredPrice)
+
+	listing, err := ns.sellEng.ListItem(ctx, userID, title, "", desiredPrice, minPrice, strategy, expiresInHours)
+	if err != nil {
+		ns.logger.Warn("list_item failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("List item failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"listing_id":    listing.ID,
+		"title":         listing.Title,
+		"desired_price": listing.DesiredPrice,
+		"min_price":     listing.MinPrice,
+		"strategy":      listing.Strategy,
+		"status":        listing.Status,
+		"created_at":    listing.CreatedAt.Format(time.RFC3339),
+		"expires_at":    listing.ExpiresAt.Format(time.RFC3339),
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handlePlaceBid(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	listingID, _ := req.RequireString("listing_id")
+	bidderID, _ := req.RequireString("bidder_id")
+	amount := req.GetFloat("amount", 0)
+	message := req.GetString("message", "")
+
+	ns.logger.Debug("place_bid called", "listing_id", listingID, "bidder_id", bidderID, "amount", amount)
+
+	bid, err := ns.sellEng.PlaceBid(ctx, listingID, bidderID, amount, message)
+	if err != nil {
+		ns.logger.Warn("place_bid failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Place bid failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"bid_id":     bid.ID,
+		"listing_id": bid.ListingID,
+		"bidder_id":  bid.BidderID,
+		"amount":     bid.Amount,
+		"message":    bid.Message,
+		"created_at": bid.CreatedAt.Format(time.RFC3339),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAcceptBid(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	listingID, _ := req.RequireString("listing_id")
+	bidID, _ := req.RequireString("bid_id")
+
+	ns.logger.Debug("accept_bid called", "listing_id", listingID, "bid_id", bidID)
+
+	result, err := ns.sellEng.AcceptBid(ctx, listingID, bidID)
+	if err != nil {
+		ns.logger.Warn("accept_bid failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Accept bid failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"listing": map[string]any{
+			"id":            result.Listing.ID,
+			"user_id":       result.Listing.UserID,
+			"title":         result.Listing.Title,
+			"desired_price": result.Listing.DesiredPrice,
+			"strategy":      result.Listing.Strategy,
+			"status":        result.Listing.Status,
+		},
+		"winning_bid": map[string]any{
+			"id":       result.WinningBid.ID,
+			"bidder_id": result.WinningBid.BidderID,
+			"amount":   result.WinningBid.Amount,
+		},
+		"status":      result.Status,
+		"final_price": result.FinalPrice,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRejectBid(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	listingID, _ := req.RequireString("listing_id")
+	bidID, _ := req.RequireString("bid_id")
+	counterMessage := req.GetString("counter_message", "")
+
+	ns.logger.Debug("reject_bid called", "listing_id", listingID, "bid_id", bidID)
+
+	if err := ns.sellEng.RejectBid(ctx, listingID, bidID, counterMessage); err != nil {
+		ns.logger.Warn("reject_bid failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Reject bid failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"status":         "rejected",
+		"listing_id":     listingID,
+		"bid_id":         bidID,
+		"counter_message": counterMessage,
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListingStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	listingID, _ := req.RequireString("listing_id")
+
+	ns.logger.Debug("listing_status called", "listing_id", listingID)
+
+	listing, err := ns.sellEng.Store().GetListing(ctx, listingID)
+	if err != nil {
+		ns.logger.Warn("listing_status failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Listing lookup failed: %s", err.Error())), nil
+	}
+
+	bids, err := ns.sellEng.Store().GetBids(ctx, listingID)
+	if err != nil {
+		ns.logger.Warn("listing_status: failed to get bids", "listing_id", listingID, "error", err.Error())
+	}
+
+	resp := map[string]any{
+		"listing": map[string]any{
+			"id":            listing.ID,
+			"user_id":       listing.UserID,
+			"title":         listing.Title,
+			"description":   listing.Description,
+			"desired_price": listing.DesiredPrice,
+			"min_price":     listing.MinPrice,
+			"strategy":      listing.Strategy,
+			"status":        listing.Status,
+			"created_at":    listing.CreatedAt.Format(time.RFC3339),
+			"expires_at":    listing.ExpiresAt.Format(time.RFC3339),
+		},
+		"bids":         bids,
+		"bid_count":    len(bids),
+		"duration_ms":  time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
