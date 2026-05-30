@@ -1,0 +1,8 @@
+[allowlist]
+description = "a2a-negotiation-mcp gitleaks config"
+regexes = [
+  "(?i)test",
+  "(?i)example",
+  "(?i)fake",
+  "(?i)placeholder",
+]

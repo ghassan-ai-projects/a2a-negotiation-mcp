@@ -1,51 +1,138 @@
-vendor,category,sku,description,list_price,min_observed,max_observed,typical_discount_pct,unit
-Slack,Communication,Pro,Pro plan per seat,8.75,6.50,8.00,18,per_seat_month
-Slack,Communication,Business+,Business+ plan per seat,15.00,11.00,14.00,22,per_seat_month
-Slack,Communication,Enterprise,Enterprise Grid per seat,28.00,20.00,26.00,25,per_seat_month
-Notion,Productivity,Plus,Plus plan per seat,10.00,7.00,9.50,20,per_seat_month
-Notion,Productivity,Business,Business plan per seat,18.00,13.00,17.00,22,per_seat_month
-Notion,Productivity,Enterprise,Enterprise plan per seat,25.00,18.00,24.00,24,per_seat_month
-GitHub,Developer,Team,Team plan per seat,4.00,3.00,3.80,15,per_seat_month
-GitHub,Developer,Enterprise,Enterprise plan per seat,21.00,15.00,20.00,22,per_seat_month
-GitHub,Developer,GitHub One,Unified enterprise per seat,42.00,30.00,40.00,25,per_seat_month
-Salesforce,CRM,Starter,Starter Suite per seat,25.00,18.00,24.00,20,per_seat_month
-Salesforce,CRM,Professional,Professional per seat,80.00,55.00,75.00,25,per_seat_month
-Salesforce,CRM,Enterprise,Enterprise per seat,165.00,110.00,155.00,28,per_seat_month
-Salesforce,CRM,Unlimited,Unlimited per seat,330.00,220.00,300.00,30,per_seat_month
-Zoom,Communication,Pro,Pro plan per seat,15.99,11.00,15.00,20,per_seat_month
-Zoom,Communication,Business,Business per seat,21.99,15.00,20.00,22,per_seat_month
-Zoom,Communication,Enterprise,Enterprise per seat,25.00,17.00,23.00,25,per_seat_month
-Figma,Design,Professional,Professional per seat,12.00,8.00,11.00,20,per_seat_month
-Figma,Design,Organization,Organization per seat,45.00,30.00,42.00,25,per_seat_month
-Figma,Design,Enterprise,Enterprise per seat,75.00,50.00,70.00,28,per_seat_month
-Atlassian,Productivity,Free,Free (up to 10 users),0.00,0.00,0.00,0,per_seat_month
-Atlassian,Productivity,Standard,Standard per seat,8.15,5.50,7.50,18,per_seat_month
-Atlassian,Productivity,Premium,Premium per seat,11.75,8.00,11.00,20,per_seat_month
-Atlassian,Productivity,Enterprise,Enterprise per seat,15.50,10.00,14.50,24,per_seat_month
-Datadog,Monitoring,Pro,Pro per host,15.00,10.00,14.00,20,per_seat_month
-Datadog,Monitoring,Enterprise,Enterprise per host,23.00,15.00,21.00,25,per_seat_month
-Datadog,Monitoring,Infrastructure,Infrastructure per host,6.00,4.00,5.50,18,per_seat_month
-AWS,Cloud,Compute,EC2 per hour (t3.medium),0.04,0.02,0.04,30,per_month
-AWS,Cloud,Storage,S3 Standard per GB,0.023,0.015,0.022,25,per_month
-AWS,Cloud,Support,Business Support,100.00,70.00,95.00,20,per_month
-Google Cloud,Cloud,Compute,Compute Engine per hour (e2-medium),0.03,0.02,0.03,28,per_month
-Google Cloud,Cloud,Storage,Cloud Storage per GB,0.020,0.014,0.019,25,per_month
-Microsoft 365,Productivity,Business Basic,Business Basic per seat,6.00,4.50,5.80,15,per_seat_month
-Microsoft 365,Productivity,Business Standard,Business Standard per seat,12.50,9.00,12.00,18,per_seat_month
-Microsoft 365,Productivity,Enterprise E3,E3 per seat,36.00,25.00,34.00,22,per_seat_month
-Microsoft 365,Productivity,Enterprise E5,E5 per seat,57.00,38.00,53.00,25,per_seat_month
-Jira,Productivity,Standard,Standard per seat,8.15,5.50,7.50,18,per_seat_month
-Jira,Productivity,Premium,Premium per seat,11.75,8.00,11.00,20,per_seat_month
-Jira,Productivity,Enterprise,Enterprise per seat,15.50,10.00,14.50,24,per_seat_month
-Confluence,Productivity,Standard,Standard per seat,6.05,4.00,5.50,18,per_seat_month
-Confluence,Productivity,Premium,Premium per seat,11.75,8.00,11.00,20,per_seat_month
-Sentry,Developer,Team,Team plan per seat,9.00,6.00,8.50,20,per_seat_month
-Sentry,Developer,Business,Business per seat,29.00,18.00,26.00,25,per_seat_month
-Sentry,Developer,Enterprise,Enterprise per seat,89.00,55.00,80.00,30,per_seat_month
-PagerDuty,Monitoring,Pro,Pro plan per seat,15.00,10.00,14.00,20,per_seat_month
-PagerDuty,Monitoring,Business,Business per seat,35.00,22.00,32.00,25,per_seat_month
-PagerDuty,Monitoring,Enterprise,Enterprise per seat,52.00,35.00,48.00,28,per_seat_month
-Monday.com,Productivity,Basic,Basic per seat,10.00,7.00,9.50,18,per_seat_month
-Monday.com,Productivity,Standard,Standard per seat,14.00,10.00,13.00,20,per_seat_month
-Monday.com,Productivity,Pro,Pro per seat,22.00,15.00,20.00,22,per_seat_month
-Monday.com,Productivity,Enterprise,Enterprise per seat,28.00,18.00,26.00,25,per_seat_month
+vendor,sku,description,list_price,min_observed,max_observed,typical_pct,unit,category
+Slack,Pro,Slack Pro per user/month,8.75,5.75,7.25,22,user/month,productivity
+Slack,Enterprise+,Slack Enterprise Grid per user/month,15.00,10.00,13.00,18,user/month,productivity
+Notion,Team,Notion Team per user/month,10.00,7.00,9.00,15,user/month,productivity
+Notion,Enterprise,Notion Enterprise per user/month,18.00,13.00,16.00,14,user/month,productivity
+Notion,AI Add-on,Notion AI per member/month,10.00,8.00,10.00,0,user/month,productivity
+Linear,Business,Linear Business per user/month,14.00,10.00,13.00,10,user/month,devtools
+Linear,Enterprise,Linear Enterprise per user/month,20.00,14.00,18.00,10,user/month,devtools
+GitHub,Team,GitHub Team per user/month,4.00,3.00,3.67,12,user/month,devtools
+GitHub,Enterprise,GitHub Enterprise per user/month,21.00,14.00,19.00,15,user/month,devtools
+GitHub,Enterprise Server,GitHub Enterprise Server per user/year,264.00,185.00,231.00,15,user/year,devtools
+GitLab,Premium,GitLab Premium per user/month,29.00,22.00,27.00,10,user/month,devtools
+GitLab,Ultimate,GitLab Ultimate per user/month,99.00,69.00,89.00,15,user/month,devtools
+JetBrains,All Products,JetBrains All Products per dev/month,74.90,52.00,65.00,15,dev/month,devtools
+JetBrains,IntelliJ IDEA,IntelliJ IDEA Ultimate per dev/month,24.90,17.00,22.00,14,dev/month,devtools
+VS Code,Copilot,GitHub Copilot per user/month,10.00,7.00,9.00,12,user/month,devtools
+Datadog,Infra Pro,Datadog Infrastructure Pro per host/month,15.00,9.00,13.00,20,host/month,analytics
+Datadog,APM Pro,Datadog APM Pro per host/month,31.00,22.00,28.00,15,host/month,analytics
+Datadog,Logs,Datadog Log Management per GB/month,2.50,1.50,2.10,20,gb/month,analytics
+Datadog,Synthetic,Datadog Synthetic Monitoring per 10K tests,5.00,3.00,4.20,20,10k_tests/month,analytics
+New Relic,Full Platform,New Relic Full Platform per user/month,45.00,30.00,40.00,18,user/month,analytics
+New Relic,Pro,New Relic Pro per host/month,0.55,0.35,0.49,15,host/month,analytics
+Sentry,Team,Sentry Team per user/month,26.00,18.00,23.00,15,user/month,analytics
+Sentry,Business,Sentry Business per user/month,80.00,55.00,72.00,12,user/month,analytics
+Mixpanel,Growth,Mixpanel Growth per month,1200.00,800.00,1050.00,15,monthly,analytics
+Mixpanel,Enterprise,Mixpanel Enterprise per year,50000.00,35000.00,45000.00,15,yearly,analytics
+Amplitude,Plus,Amplitude Plus per year,30000.00,21000.00,27000.00,12,yearly,analytics
+Figma,Professional,Figma Professional per user/month,15.00,10.00,13.00,18,user/month,design
+Figma,Organization,Figma Organization per user/month,45.00,30.00,40.00,18,user/month,design
+Figma,Enterprise,Figma Enterprise per user/month,75.00,50.00,65.00,15,user/month,design
+Sketch,Standard,Sketch Standard per user/year,99.00,79.00,89.00,10,user/year,design
+Adobe Creative Cloud,All Apps,Adobe CC All Apps per user/month,54.99,35.00,45.00,22,user/month,design
+Adobe Creative Cloud,Photography,Adobe CC Photography per user/month,19.99,12.00,16.00,22,user/month,design
+Adobe XD,Individual,Adobe XD per user/month,9.99,7.00,9.00,15,user/month,design
+Canva,Team,Canva Teams per user/month,10.00,7.00,9.00,18,user/month,design
+Canva,Enterprise,Canva Enterprise per user/month,30.00,20.00,27.00,15,user/month,design
+Miro,Team,Miro Team per user/month,16.00,11.00,14.00,18,user/month,productivity
+Miro,Business,Miro Business per user/month,32.00,22.00,28.00,18,user/month,productivity
+Miro,Enterprise,Miro Enterprise per user/month,48.00,34.00,42.00,18,user/month,productivity
+Notion,Plus,Notion Plus per user/month,12.00,8.00,11.00,15,user/month,productivity
+Coda,Team,Coda Team per user/month,10.00,7.00,9.00,15,user/month,productivity
+Coda,Business,Coda Business per user/month,30.00,20.00,27.00,15,user/month,productivity
+Loom,Business,Loom Business per user/month,15.00,10.00,13.00,18,user/month,productivity
+Loom,Enterprise,Loom Enterprise per user/month,30.00,20.00,27.00,15,user/month,productivity
+Zoom,Pro,Zoom Pro per host/month,15.99,11.00,14.00,15,host/month,productivity
+Zoom,Business,Zoom Business per host/month,21.99,15.00,19.00,15,host/month,productivity
+Zoom,Enterprise,Zoom Enterprise per host/month,25.00,17.00,22.00,18,host/month,productivity
+Google Workspace,Business Starter,Google Workspace Starter per user/month,6.00,4.20,5.40,15,user/month,productivity
+Google Workspace,Business Standard,Google Workspace Standard per user/month,12.00,8.40,10.80,15,user/month,productivity
+Google Workspace,Business Plus,Google Workspace Plus per user/month,18.00,12.60,16.20,15,user/month,productivity
+Microsoft 365,Business Basic,Microsoft 365 Business Basic per user/month,6.00,4.20,5.40,15,user/month,productivity
+Microsoft 365,Business Standard,Microsoft 365 Business Standard per user/month,12.50,8.75,11.25,15,user/month,productivity
+Microsoft 365,Business Premium,Microsoft 365 Business Premium per user/month,22.00,15.40,19.80,15,user/month,productivity
+Dropbox,Standard,Dropbox Standard per user/month,18.00,12.00,15.00,20,user/month,productivity
+Dropbox,Advanced,Dropbox Advanced per user/month,30.00,20.00,25.00,20,user/month,productivity
+Dropbox,Enterprise,Dropbox Enterprise per user/month,36.00,24.00,30.00,20,user/month,productivity
+Salesforce,Starter,Salesforce Starter per user/month,25.00,18.00,22.00,15,user/month,crm
+Salesforce,Professional,Salesforce Professional per user/month,80.00,55.00,70.00,18,user/month,crm
+Salesforce,Enterprise,Salesforce Enterprise per user/month,165.00,110.00,145.00,18,user/month,crm
+Salesforce,Unlimited,Salesforce Unlimited per user/month,330.00,220.00,290.00,18,user/month,crm
+HubSpot,Starter,HubSpot CRM Starter per user/month,20.00,14.00,18.00,15,user/month,crm
+HubSpot,Professional,HubSpot CRM Professional per user/month,100.00,70.00,90.00,15,user/month,crm
+HubSpot,Enterprise,HubSpot CRM Enterprise per user/month,150.00,105.00,135.00,15,user/month,crm
+HubSpot,Marketing Hub Pro,HubSpot Marketing Hub Pro per month,3600.00,2500.00,3200.00,15,monthly,marketing
+HubSpot,Sales Hub Pro,HubSpot Sales Hub Pro per user/month,100.00,70.00,90.00,15,user/month,marketing
+HubSpot,Service Hub Pro,HubSpot Service Hub Pro per user/month,100.00,70.00,90.00,15,user/month,marketing
+Intercom,Essential,Intercom Essential per seat/month,39.00,28.00,35.00,15,seat/month,marketing
+Intercom,Advanced,Intercom Advanced per seat/month,99.00,69.00,89.00,15,seat/month,marketing
+Intercom,Expert,Intercom Expert per seat/month,209.00,146.00,188.00,15,seat/month,marketing
+Mailchimp,Standard,Mailchimp Standard per month,299.00,200.00,260.00,18,monthly,marketing
+Mailchimp,Premium,Mailchimp Premium per month,599.00,400.00,520.00,18,monthly,marketing
+SendGrid,Pro,SendGrid Email API Pro per month,89.95,60.00,80.00,15,monthly,marketing
+SendGrid,Premium,SendGrid Email API Premier per month,299.95,200.00,270.00,15,monthly,marketing
+AWS,Support Developer,AWS Developer Support Plan,29.00,29.00,29.00,0,monthly,hosting
+AWS,Support Business,AWS Business Support Plan,100.00,100.00,100.00,0,monthly,hosting
+AWS,Basic,AWS Basic (included),0.00,0.00,0.00,0,monthly,hosting
+DigitalOcean,Basic,Droplet Basic per month,6.00,4.20,5.40,15,monthly,hosting
+DigitalOcean,Pro,Droplet Pro per month,48.00,33.00,42.00,15,monthly,hosting
+Cloudflare,Free,Cloudflare Free,0.00,0.00,0.00,0,monthly,hosting
+Cloudflare,Pro,Cloudflare Pro per month,20.00,16.00,20.00,0,monthly,hosting
+Cloudflare,Business,Cloudflare Business per month,200.00,150.00,200.00,0,monthly,hosting
+Vercel,Pro,Vercel Pro per user/month,20.00,14.00,18.00,15,user/month,hosting
+Vercel,Enterprise,Vercel Enterprise (custom),5000.00,3000.00,4500.00,25,monthly,hosting
+Netlify,Pro,Netlify Pro per user/month,19.00,13.00,17.00,15,user/month,hosting
+Netlify,Business,Netlify Business per user/month,99.00,69.00,89.00,15,user/month,hosting
+Heroku,Professional,Heroku Professional dyno/month,25.00,18.00,22.00,15,dyno/month,hosting
+Heroku,Enterprise,Heroku Enterprise per seat/month,125.00,88.00,112.00,15,seat/month,hosting
+Stripe,Standard,Stripe Online Payment Processing,2.90,2.70,2.90,0,pct_txn,analytics
+Stripe,Enterprise,Stripe Enterprise (custom),2.50,1.80,2.30,15,monthly,analytics
+Supabase,Pro,Supabase Pro per month,25.00,20.00,25.00,0,monthly,hosting
+Supabase,Team,Supabase Team per user/month,75.00,50.00,68.00,15,user/month,hosting
+Supabase,Enterprise,Supabase Enterprise per year,25000.00,17500.00,22500.00,15,yearly,hosting
+Confluent,Standard,Confluent Cloud Standard per month,1000.00,700.00,900.00,15,monthly,analytics
+Confluent,Enterprise,Confluent Cloud Enterprise per month,5000.00,3500.00,4500.00,15,monthly,analytics
+Datadog,Logs Archive,Datadog Log Archives per GB/month,1.50,0.90,1.30,20,gb/month,analytics
+PagerDuty,Professional,PagerDuty Professional per user/month,21.00,15.00,19.00,15,user/month,devtools
+PagerDuty,Business,PagerDuty Business per user/month,41.00,29.00,37.00,15,user/month,devtools
+PagerDuty,Enterprise,PagerDuty Enterprise for Ops per user/month,65.00,46.00,59.00,15,user/month,devtools
+Jira,Standard,Jira Standard per user/month,8.15,5.70,7.30,15,user/month,devtools
+Jira,Premium,Jira Premium per user/month,16.25,11.38,14.63,15,user/month,devtools
+Jira,Enterprise,Jira Enterprise per user/month,30.50,21.35,27.45,15,user/month,devtools
+Confluence,Standard,Confluence Standard per user/month,6.05,4.24,5.45,15,user/month,productivity
+Confluence,Premium,Confluence Premium per user/month,11.75,8.23,10.58,15,user/month,productivity
+Asana,Advanced,Asana Advanced per user/month,30.00,21.00,27.00,15,user/month,productivity
+Asana,Business,Asana Business per user/month,46.00,32.00,41.00,15,user/month,productivity
+Asana,Enterprise,Asana Enterprise per user/month,56.00,39.00,50.00,15,user/month,productivity
+Monday.com,Basic,Monday.com Basic per user/month,12.00,8.00,10.00,20,user/month,productivity
+Monday.com,Standard,Monday.com Standard per user/month,14.00,10.00,12.00,18,user/month,productivity
+Monday.com,Pro,Monday.com Pro per user/month,24.00,17.00,21.00,15,user/month,productivity
+Trello,Standards,Trello Standard per user/month,5.00,3.50,4.50,15,user/month,productivity
+Trello,Premium,Trello Premium per user/month,10.00,7.00,9.00,15,user/month,productivity
+Segment,Professional,Segment Professional per month,1200.00,840.00,1080.00,15,monthly,analytics
+Segment,Business,Segment Business per year,72000.00,50000.00,65000.00,15,yearly,analytics
+Twilio,SendGrid Email,Twilio SendGrid per 100K emails,14.50,10.00,13.00,15,100k_emails,analytics
+Twilio,SMS,Twilio SMS per message,0.01,0.01,0.01,0,message,analytics
+Okta,SSO,Okta SSO per user/month,2.00,1.40,1.80,15,user/month,security
+Okta,Adaptive MFA,Okta Adaptive MFA per user/month,5.00,3.50,4.50,15,user/month,security
+Okta,Lifecycle,Okta Lifecycle Management per user/month,6.00,4.20,5.40,15,user/month,security
+1Password,Business,1Password Business per user/month,7.99,5.59,7.19,15,user/month,security
+1Password,Enterprise,1Password Enterprise per user/month,9.99,6.99,8.99,15,user/month,security
+Auth0,Professional,Auth0 Professional per user/month,23.00,16.00,21.00,15,user/month,security
+Auth0,Enterprise,Auth0 Enterprise per user/month,30.00,21.00,27.00,15,user/month,security
+Snyk,Team,Snyk Team per developer/month,25.00,18.00,23.00,15,dev/month,security
+Snyk,Enterprise,Snyk Enterprise per developer/month,69.00,48.00,62.00,15,dev/month,security
+Databricks,Standard,Databricks Standard DBU/hour,0.55,0.40,0.50,15,dbu/hour,analytics
+Databricks,Premium,Databricks Premium DBU/hour,0.70,0.50,0.63,15,dbu/hour,analytics
+Datadog,CI Visibility,Datadog CI Visibility per committer/month,15.00,10.00,13.00,15,committer/month,devtools
+Elastic,Cloud Standard,Elastic Cloud per GB/hour,0.12,0.08,0.11,15,gb/hour,analytics
+Elastic,Enterprise,Elastic Enterprise per GB/hour,0.18,0.13,0.16,15,gb/hour,analytics
+MongoDB,Atlas Serverless,MongoDB Atlas Serverless per million reads,0.10,0.07,0.09,15,million_reads,hosting
+MongoDB,Atlas Dedicated,MongoDB Atlas Dedicated per hour,0.10,0.07,0.09,15,hourly,hosting
+Vercel,Analytics,Vercel Analytics per month,50.00,35.00,45.00,15,monthly,analytics
+Vercel,Edge Functions,Vercel Edge Functions per month,20.00,14.00,18.00,15,monthly,hosting
+Cloudinary,Basic,Cloudinary Image/Video Basic per month,89.00,62.00,80.00,15,monthly,hosting
+Cloudinary,Advanced,Cloudinary Image/Video Advanced per month,249.00,174.00,224.00,15,monthly,hosting
+Snowflake,Standard,Snowflake Standard per credit,4.00,2.80,3.60,15,credit,analytics
+Snowflake,Enterprise,Snowflake Enterprise per credit,6.00,4.20,5.40,15,credit,analytics
+Snowflake,Business Critical,Snowflake Business Critical per credit,8.00,5.60,7.20,15,credit,analytics
