@@ -1,0 +1,51 @@
+vendor,category,sku,description,list_price,min_observed,max_observed,typical_discount_pct,unit
+Slack,Communication,Pro,Pro plan per seat,8.75,6.50,8.00,18,per_seat_month
+Slack,Communication,Business+,Business+ plan per seat,15.00,11.00,14.00,22,per_seat_month
+Slack,Communication,Enterprise,Enterprise Grid per seat,28.00,20.00,26.00,25,per_seat_month
+Notion,Productivity,Plus,Plus plan per seat,10.00,7.00,9.50,20,per_seat_month
+Notion,Productivity,Business,Business plan per seat,18.00,13.00,17.00,22,per_seat_month
+Notion,Productivity,Enterprise,Enterprise plan per seat,25.00,18.00,24.00,24,per_seat_month
+GitHub,Developer,Team,Team plan per seat,4.00,3.00,3.80,15,per_seat_month
+GitHub,Developer,Enterprise,Enterprise plan per seat,21.00,15.00,20.00,22,per_seat_month
+GitHub,Developer,GitHub One,Unified enterprise per seat,42.00,30.00,40.00,25,per_seat_month
+Salesforce,CRM,Starter,Starter Suite per seat,25.00,18.00,24.00,20,per_seat_month
+Salesforce,CRM,Professional,Professional per seat,80.00,55.00,75.00,25,per_seat_month
+Salesforce,CRM,Enterprise,Enterprise per seat,165.00,110.00,155.00,28,per_seat_month
+Salesforce,CRM,Unlimited,Unlimited per seat,330.00,220.00,300.00,30,per_seat_month
+Zoom,Communication,Pro,Pro plan per seat,15.99,11.00,15.00,20,per_seat_month
+Zoom,Communication,Business,Business per seat,21.99,15.00,20.00,22,per_seat_month
+Zoom,Communication,Enterprise,Enterprise per seat,25.00,17.00,23.00,25,per_seat_month
+Figma,Design,Professional,Professional per seat,12.00,8.00,11.00,20,per_seat_month
+Figma,Design,Organization,Organization per seat,45.00,30.00,42.00,25,per_seat_month
+Figma,Design,Enterprise,Enterprise per seat,75.00,50.00,70.00,28,per_seat_month
+Atlassian,Productivity,Free,Free (up to 10 users),0.00,0.00,0.00,0,per_seat_month
+Atlassian,Productivity,Standard,Standard per seat,8.15,5.50,7.50,18,per_seat_month
+Atlassian,Productivity,Premium,Premium per seat,11.75,8.00,11.00,20,per_seat_month
+Atlassian,Productivity,Enterprise,Enterprise per seat,15.50,10.00,14.50,24,per_seat_month
+Datadog,Monitoring,Pro,Pro per host,15.00,10.00,14.00,20,per_seat_month
+Datadog,Monitoring,Enterprise,Enterprise per host,23.00,15.00,21.00,25,per_seat_month
+Datadog,Monitoring,Infrastructure,Infrastructure per host,6.00,4.00,5.50,18,per_seat_month
+AWS,Cloud,Compute,EC2 per hour (t3.medium),0.04,0.02,0.04,30,per_month
+AWS,Cloud,Storage,S3 Standard per GB,0.023,0.015,0.022,25,per_month
+AWS,Cloud,Support,Business Support,100.00,70.00,95.00,20,per_month
+Google Cloud,Cloud,Compute,Compute Engine per hour (e2-medium),0.03,0.02,0.03,28,per_month
+Google Cloud,Cloud,Storage,Cloud Storage per GB,0.020,0.014,0.019,25,per_month
+Microsoft 365,Productivity,Business Basic,Business Basic per seat,6.00,4.50,5.80,15,per_seat_month
+Microsoft 365,Productivity,Business Standard,Business Standard per seat,12.50,9.00,12.00,18,per_seat_month
+Microsoft 365,Productivity,Enterprise E3,E3 per seat,36.00,25.00,34.00,22,per_seat_month
+Microsoft 365,Productivity,Enterprise E5,E5 per seat,57.00,38.00,53.00,25,per_seat_month
+Jira,Productivity,Standard,Standard per seat,8.15,5.50,7.50,18,per_seat_month
+Jira,Productivity,Premium,Premium per seat,11.75,8.00,11.00,20,per_seat_month
+Jira,Productivity,Enterprise,Enterprise per seat,15.50,10.00,14.50,24,per_seat_month
+Confluence,Productivity,Standard,Standard per seat,6.05,4.00,5.50,18,per_seat_month
+Confluence,Productivity,Premium,Premium per seat,11.75,8.00,11.00,20,per_seat_month
+Sentry,Developer,Team,Team plan per seat,9.00,6.00,8.50,20,per_seat_month
+Sentry,Developer,Business,Business per seat,29.00,18.00,26.00,25,per_seat_month
+Sentry,Developer,Enterprise,Enterprise per seat,89.00,55.00,80.00,30,per_seat_month
+PagerDuty,Monitoring,Pro,Pro plan per seat,15.00,10.00,14.00,20,per_seat_month
+PagerDuty,Monitoring,Business,Business per seat,35.00,22.00,32.00,25,per_seat_month
+PagerDuty,Monitoring,Enterprise,Enterprise per seat,52.00,35.00,48.00,28,per_seat_month
+Monday.com,Productivity,Basic,Basic per seat,10.00,7.00,9.50,18,per_seat_month
+Monday.com,Productivity,Standard,Standard per seat,14.00,10.00,13.00,20,per_seat_month
+Monday.com,Productivity,Pro,Pro per seat,22.00,15.00,20.00,22,per_seat_month
+Monday.com,Productivity,Enterprise,Enterprise per seat,28.00,18.00,26.00,25,per_seat_month
