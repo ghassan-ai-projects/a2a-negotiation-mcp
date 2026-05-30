@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+        "strings"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -101,6 +103,14 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_strategies",
 		mcp.WithDescription("List available negotiation strategy profiles with descriptions and aggressiveness levels."),
 	), ns.handleStrategies)
+
+        // Tool 7: negotiate_run_parallel
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_run_parallel",
+                mcp.WithDescription("Run parallel negotiations across multiple sessions. Evaluates each session concurrently and selects the best result based on the chosen strategy."),
+                mcp.WithArray("sessions", mcp.Required(), mcp.WithStringItems(), mcp.Description("Array of session IDs to negotiate in parallel (required)")),
+                mcp.WithString("strategy", mcp.Required(), mcp.Description("Selection strategy: best_price, best_discount, or fastest")),
+                mcp.WithInteger("timeout", mcp.Description("Timeout per session in seconds (optional, default 30)")),
+        ), ns.handleRunParallel)
 }
 
 // ─── Tool Handlers ───
@@ -423,4 +433,97 @@ func (ns *NegotiationServer) jsonResult(data map[string]any) (*mcp.CallToolResul
 			mcp.TextContent{Type: "text", Text: string(b)},
 		},
 	}, nil
+}
+
+func (ns *NegotiationServer) handleRunParallel(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	rawSessions, ok := req.GetArguments()["sessions"]
+	if !ok {
+		return mcp.NewToolResultError("sessions is required"), nil
+	}
+	sessionsList, ok := rawSessions.([]any)
+	if !ok || len(sessionsList) == 0 {
+		return mcp.NewToolResultError("sessions must be a non-empty array of vendor strings (e.g. 'Vendor' or 'Vendor/SKU')"), nil
+	}
+
+	strategy, _ := req.RequireString("strategy")
+	if strategy == "" {
+		strategy = "best_price"
+	}
+	timeout := req.GetInt("timeout", 30)
+
+	ns.logger.Debug("run_parallel called", "sessions", sessionsList, "strategy", strategy, "timeout", timeout)
+
+	// Create sessions for each vendor/SKU
+	var sessionIDs []string
+	for _, raw := range sessionsList {
+		entry, ok := raw.(string)
+		if !ok || entry == "" {
+			continue
+		}
+
+		vendor := entry
+		sku := ""
+		if idx := strings.Index(entry, "/"); idx >= 0 {
+			vendor = entry[:idx]
+			sku = entry[idx+1:]
+		}
+
+		session, err := ns.negotiationEng.CreateSession(ctx, vendor, sku, strategy, 0, nil)
+		if err != nil {
+			ns.logger.Warn("run_parallel: failed to create session", "vendor", vendor, "error", err.Error())
+			return mcp.NewToolResultError(fmt.Sprintf("Session creation failed for %s: %s", vendor, err.Error())), nil
+		}
+
+		session.ID = uuid.New().String()
+
+		histSess := &history.SessionRecord{
+			ID: session.ID, Vendor: session.Vendor, SKU: session.SKU,
+			Strategy: session.Strategy, Budget: session.Budget, Status: session.Status,
+			CurrentOffer: session.CurrentOffer, ListPrice: session.ListPrice,
+			RoundsComplete: session.RoundsComplete, Outcome: session.Outcome,
+			CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
+		}
+		if err := ns.historyStore.SaveSession(ctx, histSess); err != nil {
+			ns.logger.Error("run_parallel: failed to save session", "error", err.Error())
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to save session: %s", err.Error())), nil
+		}
+
+		sessionIDs = append(sessionIDs, session.ID)
+	}
+
+	if len(sessionIDs) == 0 {
+		return mcp.NewToolResultError("No valid sessions could be created from the input"), nil
+	}
+
+	// Build parallel engine
+	parEng := parallel.NewEngine(ns.negotiationEng, ns.historyStore, ns.pricingStore, ns.logger)
+
+	cfg := parallel.ParallelConfig{
+		SessionIDs: sessionIDs,
+		Strategy:   strategy,
+		Timeout:    timeout,
+	}
+
+	result, err := parEng.RunParallel(ctx, cfg)
+	if err != nil {
+		ns.logger.Warn("run_parallel failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Parallel negotiation failed: %s", err.Error())), nil
+	}
+
+	// Add duration
+	result.DurationMs = time.Since(start).Milliseconds()
+
+	resp := map[string]any{
+		"winner_session_id":  result.WinnerSessionID,
+		"winner_vendor":      result.WinnerVendor,
+		"winner_offer":       result.WinnerOffer,
+		"winner_discount_pct": result.WinnerDiscount,
+		"strategy":           result.Strategy,
+		"total_rounds":       result.TotalRounds,
+		"all_results":        result.AllResults,
+		"duration_ms":        result.DurationMs,
+	}
+	return ns.jsonResult(resp)
 }
