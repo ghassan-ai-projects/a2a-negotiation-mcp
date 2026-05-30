@@ -10,6 +10,7 @@ import (
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
@@ -56,7 +57,13 @@ func setupTest(t *testing.T) *NegotiationServer {
 	}
 	ceng := calendar.NewEngine(cstore, negEng, hstore, pstore, logger)
 
-	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, nil, nil, logger)
+	hstore2, err := health.NewStoreFromDB(pstore.DB())
+	if err != nil {
+		t.Fatalf("health.NewStoreFromDB: %v", err)
+	}
+	heng := health.NewEngine(hstore2, logger)
+
+	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, heng, nil, nil, logger)
 }
 
 func seedPricingData(t *testing.T, store *pricing.Store) {

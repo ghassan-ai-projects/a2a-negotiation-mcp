@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
@@ -36,12 +37,13 @@ type NegotiationServer struct {
 	calendarEng    *calendar.Engine
 	logger         *slog.Logger
 	learningEng    *learning.Engine
+	healthEng      *health.Engine
         marketplaceEng *marketplace.Engine
 	slackClient *slack.Client
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, marketplaceEngine *marketplace.Engine, slackClient *slack.Client, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slackClient *slack.Client, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -1337,3 +1339,93 @@ func (ns *NegotiationServer) handleSlackStatus(ctx context.Context, req mcp.Call
 	}
 	return ns.jsonResult(resp)
 }
+
+// ─── Vendor Health Handlers ───
+
+func (ns *NegotiationServer) handleVendorHealth(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+
+	ns.logger.Debug("vendor_health called", "vendor", vendor)
+
+	leverage, err := ns.healthEng.GetLeverage(ctx, vendor)
+	if err != nil {
+		ns.logger.Warn("vendor_health failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Health lookup failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":     leverage.Vendor,
+		"health": map[string]any{
+			"score":        leverage.Health.Score,
+			"category":     leverage.Health.Category,
+			"last_updated": leverage.Health.LastUpdated.Format(time.RFC3339),
+			"signals":      leverage.Health.Signals,
+		},
+		"leverage":   leverage.Leverage,
+		"suggestion": leverage.Suggestion,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRecordSignal(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	signalType, _ := req.RequireString("type")
+	detail, _ := req.RequireString("detail")
+	weight := int(req.GetInt("weight", 0))
+
+	ns.logger.Debug("record_signal called", "vendor", vendor, "type", signalType)
+
+	if err := ns.healthEng.RecordSignal(ctx, vendor, signalType, "manual", detail, weight); err != nil {
+		ns.logger.Warn("record_signal failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Record signal failed: %s", err.Error())), nil
+	}
+
+	// Re-fetch leverage for the response
+	leverage, err := ns.healthEng.GetLeverage(ctx, vendor)
+	if err != nil {
+		ns.logger.Warn("record_signal: leverage re-fetch failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Signal recorded but re-fetch failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":     leverage.Vendor,
+		"recorded":   true,
+		"health": map[string]any{
+			"score":    leverage.Health.Score,
+			"category": leverage.Health.Category,
+		},
+		"leverage":   leverage.Leverage,
+		"suggestion": leverage.Suggestion,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleHealthOverview(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("health_overview called")
+
+	vendors, err := ns.healthEng.Store().ListAll(ctx)
+	if err != nil {
+		ns.logger.Warn("health_overview failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Health overview failed: %s", err.Error())), nil
+	}
+
+	if vendors == nil {
+		vendors = []health.VendorHealth{}
+	}
+
+	resp := map[string]any{
+		"vendors":     vendors,
+		"vendor_count": len(vendors),
+		"duration_ms":  time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+

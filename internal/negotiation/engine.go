@@ -9,6 +9,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ierrors"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 )
 
 // Session represents a negotiation session.
@@ -55,6 +56,7 @@ type NegotiateResult struct {
 type Engine struct {
 	pricingStore *pricing.Store
 	learningEng  *learning.Engine
+	healthEng    *health.Engine
 }
 
 // NewEngine creates a new negotiation engine.
@@ -65,6 +67,11 @@ func NewEngine(pricingStore *pricing.Store) *Engine {
 // SetLearningEngine attaches a learning engine to automatically record outcomes.
 func (e *Engine) SetLearningEngine(le *learning.Engine) {
 	e.learningEng = le
+}
+
+// SetHealthEngine attaches a health engine to leverage vendor health data in negotiations.
+func (e *Engine) SetHealthEngine(he *health.Engine) {
+	e.healthEng = he
 }
 
 // CreateSession initializes a new negotiation session.
@@ -106,6 +113,20 @@ func (e *Engine) CreateSession(ctx context.Context, vendor, sku, strategyName st
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
+	// Check vendor health and adjust strategy if health engine is available
+	if e.healthEng != nil {
+		leverage, err := e.healthEng.GetLeverage(ctx, vendor)
+		if err == nil && leverage != nil {
+			if session.Constraints == nil {
+				session.Constraints = make(map[string]any)
+			}
+			session.Constraints["vendor_health_score"] = leverage.Health.Score
+			session.Constraints["vendor_health_category"] = leverage.Health.Category
+			session.Constraints["leverage"] = leverage.Leverage
+			session.Constraints["leverage_suggestion"] = leverage.Suggestion
+		}
+	}
+
 	return session, nil
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
@@ -115,6 +116,14 @@ func main() {
                 os.Exit(1)
         }
         marketplaceEngine := marketplace.NewEngine(marketplaceStore, logger)
+        // Initialize health store (shares the same DB)
+        healthStore, err := health.NewStoreFromDB(pricingStore.DB())
+        if err != nil {
+                logger.Error("failed to initialize health store", "error", err.Error())
+                os.Exit(1)
+        }
+        healthEngine := health.NewEngine(healthStore, logger)
+
 
 	// Initialize Slack client if webhook provided
 	var slackClient *slack.Client
@@ -124,7 +133,7 @@ func main() {
 	}
 
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, marketplaceEngine, slackClient, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slackClient, logger)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
