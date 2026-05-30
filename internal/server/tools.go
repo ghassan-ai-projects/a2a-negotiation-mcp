@@ -9,19 +9,20 @@ import (
 	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/quote"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/quote"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -44,6 +45,7 @@ type NegotiationServer struct {
 	slaEng       *sla.Engine
 	slackClient  *slack.Client
         quoteEng     *quote.Engine
+        contractEng  *contract.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
@@ -78,6 +80,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 marketplaceEng: marketplaceEngine,
 		slackClient:    slackClient,
                 quoteEng:       quote.NewEngine(pricingStore, logger),
+		contractEng:    contract.NewEngine(calendarEngine, logger),
 	}
 
 	ns.registerTools()
@@ -307,6 +310,20 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithDescription("Generate a formatted counter-offer text from a quote analysis JSON."),
                 mcp.WithString("analysis_json", mcp.Required(), mcp.Description("The full QuoteAnalysis JSON from negotiate_analyze_quote")),
         ), ns.handleGenerateCounter)
+
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_parse_contract",
+                mcp.WithDescription("Parse contract text to extract key terms: end dates, auto-renewal, price lock periods, termination notice. Returns structured terms with per-field confidence levels."),
+                mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full contract text to parse")),
+                mcp.WithString("vendor", mcp.Description("Vendor name (optional)")),
+                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+        ), ns.handleParseContract)
+
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_parse_and_calendar",
+                mcp.WithDescription("Parse contract text AND auto-populate the renewal calendar. Combines parsing with calendar entry creation."),
+                mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full contract text to parse")),
+                mcp.WithString("vendor", mcp.Description("Vendor name (optional)")),
+                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+        ), ns.handleParseAndCalendar)
 
 
 }
@@ -1664,3 +1681,67 @@ func (ns *NegotiationServer) handleGenerateCounter(ctx context.Context, req mcp.
 	}
 	return ns.jsonResult(resp)
 }
+
+func (ns *NegotiationServer) handleParseContract(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+        rawText, _ := req.RequireString("raw_text")
+        vendor := req.GetString("vendor", "")
+        sku := req.GetString("sku", "")
+
+        ns.logger.Debug("parse_contract called", "vendor", vendor, "sku", sku, "text_length", len(rawText))
+
+        result, err := ns.contractEng.ParseContract(ctx, rawText, vendor, sku)
+        if err != nil {
+                ns.logger.Warn("parse_contract failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Contract parse failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "terms":            result.Terms,
+                "field_confidence": result.FieldConf,
+                "warnings":         result.Warnings,
+                "auto_populated":   result.AutoPopulated,
+                "duration_ms":      time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleParseAndCalendar(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+        rawText, _ := req.RequireString("raw_text")
+        vendor := req.GetString("vendor", "")
+        sku := req.GetString("sku", "")
+
+        ns.logger.Debug("parse_and_calendar called", "vendor", vendor, "sku", sku, "text_length", len(rawText))
+
+        result, err := ns.contractEng.ParseContract(ctx, rawText, vendor, sku)
+        if err != nil {
+                ns.logger.Warn("parse_and_calendar failed at parse", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Contract parse failed: %s", err.Error())), nil
+        }
+
+        if result.Terms.EndDate != "" {
+                if err := ns.contractEng.PopulateCalendar(ctx, result); err != nil {
+                        ns.logger.Warn("parse_and_calendar failed at calendar population", "error", err.Error())
+                        // Return partial result with warning
+                        resp := map[string]any{
+                                "terms":            result.Terms,
+                                "field_confidence": result.FieldConf,
+                                "warnings":         append(result.Warnings, "calendar population failed: "+err.Error()),
+                                "auto_populated":   false,
+                                "duration_ms":      time.Since(start).Milliseconds(),
+                        }
+                        return ns.jsonResult(resp)
+                }
+        }
+
+        resp := map[string]any{
+                "terms":            result.Terms,
+                "field_confidence": result.FieldConf,
+                "warnings":         result.Warnings,
+                "auto_populated":   result.AutoPopulated,
+                "duration_ms":      time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
