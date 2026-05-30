@@ -17,6 +17,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -36,10 +37,11 @@ type NegotiationServer struct {
 	logger         *slog.Logger
 	learningEng    *learning.Engine
         marketplaceEng *marketplace.Engine
+	slackClient *slack.Client
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, marketplaceEngine *marketplace.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, marketplaceEngine *marketplace.Engine, slackClient *slack.Client, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -68,6 +70,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		logger:         logger,
 		learningEng:    learningEng,
                 marketplaceEng: marketplaceEngine,
+		slackClient:    slackClient,
 	}
 
 	ns.registerTools()
@@ -245,6 +248,17 @@ func (ns *NegotiationServer) registerTools() {
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_marketplace_overview",
                 mcp.WithDescription("Get marketplace overview: active listings count and recent transactions."),
         ), ns.handleMarketplaceOverview)
+
+        // Tool 23: negotiate_configure_slack
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_configure_slack",
+                mcp.WithDescription("Configure Slack webhook URL for negotiation alerts."),
+                mcp.WithString("webhook_url", mcp.Required(), mcp.Description("Slack incoming webhook URL")),
+        ), ns.handleConfigureSlack)
+
+        // Tool 24: negotiate_slack_status
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_slack_status",
+                mcp.WithDescription("Check if Slack integration is configured and when the last alert was sent."),
+        ), ns.handleSlackStatus)
 }
 
 // ─── Tool Handlers ───
@@ -1053,6 +1067,18 @@ func (ns *NegotiationServer) handleCheckRenewals(ctx context.Context, req mcp.Ca
 		checks = []calendar.RenewalCheck{}
 	}
 
+	// Send Slack alerts for urgent renewals (<30 days)
+	if ns.slackClient != nil && ns.slackClient.Enabled() {
+		for _, c := range checks {
+			if c.Urgency == "high" {
+				blocks := slack.RenewalAlert(c.Contract, c.SuggestedSavings, c.DaysUntil)
+				if err := ns.slackClient.Send(ctx, blocks); err != nil {
+					ns.logger.Warn("failed to send Slack renewal alert", "vendor", c.Contract.Vendor, "error", err.Error())
+				}
+			}
+		}
+	}
+
 	resp := map[string]any{
 		"renewals":    checks,
 		"count":       len(checks),
@@ -1275,4 +1301,39 @@ func (ns *NegotiationServer) handleMarketplaceOverview(ctx context.Context, req 
 
 	overview["duration_ms"] = time.Since(start).Milliseconds()
 	return ns.jsonResult(overview)
+}
+
+// ─── Slack Integration Handlers ───
+
+func (ns *NegotiationServer) handleConfigureSlack(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	webhookURL, _ := req.RequireString("webhook_url")
+
+	ns.logger.Debug("configure_slack called", "configured", webhookURL != "")
+
+	ns.slackClient = slack.NewClient(webhookURL, ns.logger)
+
+	resp := map[string]any{
+		"status":  "configured",
+		"enabled": ns.slackClient.Enabled(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSlackStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ns.logger.Debug("slack_status called")
+
+	configured := ns.slackClient != nil && ns.slackClient.Enabled()
+	lastSent := ""
+	if ns.slackClient != nil {
+		ts := ns.slackClient.LastSent()
+		if !ts.IsZero() {
+			lastSent = ts.Format(time.RFC3339)
+		}
+	}
+
+	resp := map[string]any{
+		"configured":      configured,
+		"last_alert_sent": lastSent,
+	}
+	return ns.jsonResult(resp)
 }

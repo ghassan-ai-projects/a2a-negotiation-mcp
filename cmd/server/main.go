@@ -19,6 +19,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -29,6 +30,7 @@ func main() {
 		seedPath  = flag.String("seed", "", "Path to seed CSV file (optional)")
 		logFormat = flag.String("log", "json", "Log format: json or text")
 		httpAddr  = flag.String("http", "", "HTTP listen address for A2A endpoints (e.g. :8080)")
+	slackWebhook = flag.String("slack-webhook", "", "Slack webhook URL for negotiation alerts (optional)")
 	)
 	flag.Parse()
 
@@ -113,8 +115,16 @@ func main() {
                 os.Exit(1)
         }
         marketplaceEngine := marketplace.NewEngine(marketplaceStore, logger)
+
+	// Initialize Slack client if webhook provided
+	var slackClient *slack.Client
+	if *slackWebhook != "" {
+		slackClient = slack.NewClient(*slackWebhook, logger)
+		logger.Info("slack integration enabled", "webhook", *slackWebhook)
+	}
+
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, marketplaceEngine, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, marketplaceEngine, slackClient, logger)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

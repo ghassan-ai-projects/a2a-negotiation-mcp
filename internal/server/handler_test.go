@@ -56,7 +56,7 @@ func setupTest(t *testing.T) *NegotiationServer {
 	}
 	ceng := calendar.NewEngine(cstore, negEng, hstore, pstore, logger)
 
-	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, nil, logger)
+	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, nil, nil, logger)
 }
 
 func seedPricingData(t *testing.T, store *pricing.Store) {
