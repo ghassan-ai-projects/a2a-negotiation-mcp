@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  negotiation-agent:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - a2a-negotiation-data:/root/.a2a-negotiation
+    command: ["-http", ":8080", "-seed", "/app/data/seeds/saas_pricing.csv"]
+
+volumes:
+  a2a-negotiation-data:
