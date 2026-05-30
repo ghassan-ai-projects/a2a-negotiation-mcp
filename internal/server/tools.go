@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
-        "strings"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/google/uuid"
@@ -29,11 +30,12 @@ type NegotiationServer struct {
 	minerEng       *miner.Engine
 	groupEng       *group.Engine
 	sellEng        *sell.Engine
+	calendarEng    *calendar.Engine
 	logger         *slog.Logger
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 
@@ -51,6 +53,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		minerEng:       miningEng,
 		groupEng:       groupEngine,
 		sellEng:        sellEngine,
+		calendarEng:    calendarEngine,
 		logger:         logger,
 	}
 
@@ -110,13 +113,13 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("List available negotiation strategy profiles with descriptions and aggressiveness levels."),
 	), ns.handleStrategies)
 
-        // Tool 7: negotiate_run_parallel
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_run_parallel",
-                mcp.WithDescription("Run parallel negotiations across multiple sessions. Evaluates each session concurrently and selects the best result based on the chosen strategy."),
-                mcp.WithArray("sessions", mcp.Required(), mcp.WithStringItems(), mcp.Description("Array of session IDs to negotiate in parallel (required)")),
-                mcp.WithString("strategy", mcp.Required(), mcp.Description("Selection strategy: best_price, best_discount, or fastest")),
-                mcp.WithInteger("timeout", mcp.Description("Timeout per session in seconds (optional, default 30)")),
-        ), ns.handleRunParallel)
+	// Tool 7: negotiate_run_parallel
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_run_parallel",
+		mcp.WithDescription("Run parallel negotiations across multiple sessions. Evaluates each session concurrently and selects the best result based on the chosen strategy."),
+		mcp.WithArray("sessions", mcp.Required(), mcp.WithStringItems(), mcp.Description("Array of session IDs to negotiate in parallel (required)")),
+		mcp.WithString("strategy", mcp.Required(), mcp.Description("Selection strategy: best_price, best_discount, or fastest")),
+		mcp.WithInteger("timeout", mcp.Description("Timeout per session in seconds (optional, default 30)")),
+	), ns.handleRunParallel)
 
 	// Tool 8: negotiate_create_group
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_create_group",
@@ -147,6 +150,37 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("View buying group details and member list."),
 		mcp.WithString("group_id", mcp.Required(), mcp.Description("Group ID")),
 	), ns.handleGroupStatus)
+
+	// Tool 12: negotiate_add_contract
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_add_contract",
+		mcp.WithDescription("Register a new SaaS contract for renewal tracking."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name (e.g., Slack, GitHub)")),
+		mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
+		mcp.WithInteger("seats", mcp.Required(), mcp.Description("Number of seats/units")),
+		mcp.WithNumber("current_price_per_unit", mcp.Required(), mcp.Description("Current price per seat/unit")),
+		mcp.WithString("renewal_date", mcp.Required(), mcp.Description("Renewal date (RFC3339, e.g. 2026-06-15T00:00:00Z)")),
+	), ns.handleAddContract)
+
+	// Tool 13: negotiate_list_contracts
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_contracts",
+		mcp.WithDescription("List registered contracts with optional filters."),
+		mcp.WithString("vendor", mcp.Description("Filter by vendor name")),
+		mcp.WithString("status", mcp.Description("Filter by status: active, negotiating, renewed, cancelled")),
+		mcp.WithInteger("expiring_soon", mcp.Description("Only contracts expiring within this many days")),
+	), ns.handleListContracts)
+
+	// Tool 14: negotiate_check_renewals
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_renewals",
+		mcp.WithDescription("Check upcoming contract renewals with urgency classification and savings estimates."),
+		mcp.WithInteger("days_ahead", mcp.Required(), mcp.Description("Number of days to look ahead (e.g. 90)")),
+	), ns.handleCheckRenewals)
+
+	// Tool 15: negotiate_trigger_renewal
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_trigger_renewal",
+		mcp.WithDescription("Trigger an automatic negotiation for a contract about to renew."),
+		mcp.WithString("contract_id", mcp.Required(), mcp.Description("Contract ID to negotiate")),
+	), ns.handleTriggerRenewal)
+
 }
 
 // ─── Tool Handlers ───
@@ -186,15 +220,15 @@ func (ns *NegotiationServer) handleQueryPrice(ctx context.Context, req mcp.CallT
 	result.SuggestedMax = float64(int(result.SuggestedMax*100)) / 100
 
 	resp := map[string]any{
-		"vendor":              vendor,
-		"sku":                 result.SKU,
-		"list_price":          result.ListPrice,
-		"market_price_range":  []float64{result.MarketMin, result.MarketMax},
+		"vendor":                  vendor,
+		"sku":                     result.SKU,
+		"list_price":              result.ListPrice,
+		"market_price_range":      []float64{result.MarketMin, result.MarketMax},
 		"suggested_counter_offer": map[string]float64{"min": result.SuggestedMin, "max": result.SuggestedMax},
-		"data_points_count":   result.DataPoints + 1,
-		"confidence":          result.Confidence,
-		"typical_discount_pct": result.TypicalPct,
-		"duration_ms":         time.Since(start).Milliseconds(),
+		"data_points_count":       result.DataPoints + 1,
+		"confidence":              result.Confidence,
+		"typical_discount_pct":    result.TypicalPct,
+		"duration_ms":             time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -387,12 +421,12 @@ func (ns *NegotiationServer) handleHistory(ctx context.Context, req mcp.CallTool
 	}
 
 	resp := map[string]any{
-		"total_deals":              summary.TotalDeals,
-		"win_rate":                 summary.WinRate,
-		"avg_discount_percentage":  summary.AvgDiscountPct,
-		"total_savings":            summary.TotalSavings,
-		"deals":                    summary.Deals,
-		"duration_ms":              time.Since(start).Milliseconds(),
+		"total_deals":             summary.TotalDeals,
+		"win_rate":                summary.WinRate,
+		"avg_discount_percentage": summary.AvgDiscountPct,
+		"total_savings":           summary.TotalSavings,
+		"deals":                   summary.Deals,
+		"duration_ms":             time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -417,45 +451,45 @@ func (ns *NegotiationServer) handleStrategies(ctx context.Context, req mcp.CallT
 }
 
 func (ns *NegotiationServer) handleDiscoverOpportunities(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
-        businessName, _ := req.RequireString("business_name")
-        description, _ := req.RequireString("description")
-        industry := req.GetString("industry", "")
-        employees := int(req.GetFloat("employees", 0))
-        rawVendors, _ := req.GetArguments()["vendors"]
+	start := time.Now()
+	businessName, _ := req.RequireString("business_name")
+	description, _ := req.RequireString("description")
+	industry := req.GetString("industry", "")
+	employees := int(req.GetFloat("employees", 0))
+	rawVendors, _ := req.GetArguments()["vendors"]
 	vendorsList, _ := rawVendors.([]any)
 
-        ns.logger.Debug("discover_opportunities called",
-                "name", businessName, "industry", industry, "employees", employees)
+	ns.logger.Debug("discover_opportunities called",
+		"name", businessName, "industry", industry, "employees", employees)
 
-        vendors := make([]string, 0, len(vendorsList))
-        for _, v := range vendorsList {
-                if s, ok := v.(string); ok {
-                        vendors = append(vendors, s)
-                }
-        }
+	vendors := make([]string, 0, len(vendorsList))
+	for _, v := range vendorsList {
+		if s, ok := v.(string); ok {
+			vendors = append(vendors, s)
+		}
+	}
 
-        profile := miner.BusinessProfile{
-                Name:        businessName,
-                Description: description,
-                Employees:   employees,
-                Industry:    industry,
-                Vendors:     vendors,
-        }
+	profile := miner.BusinessProfile{
+		Name:        businessName,
+		Description: description,
+		Employees:   employees,
+		Industry:    industry,
+		Vendors:     vendors,
+	}
 
-        opportunities, err := ns.minerEng.DiscoverOpportunities(ctx, profile)
-        if err != nil {
-                ns.logger.Error("discover_opportunities failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Opportunity discovery failed: %s", err.Error())), nil
-        }
+	opportunities, err := ns.minerEng.DiscoverOpportunities(ctx, profile)
+	if err != nil {
+		ns.logger.Error("discover_opportunities failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Opportunity discovery failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "business_name": businessName,
-                "opportunities": opportunities,
-                "opportunity_count": len(opportunities),
-                "duration_ms":  time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"business_name":     businessName,
+		"opportunities":     opportunities,
+		"opportunity_count": len(opportunities),
+		"duration_ms":       time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) jsonResult(data map[string]any) (*mcp.CallToolResult, error) {
@@ -552,14 +586,14 @@ func (ns *NegotiationServer) handleRunParallel(ctx context.Context, req mcp.Call
 	result.DurationMs = time.Since(start).Milliseconds()
 
 	resp := map[string]any{
-		"winner_session_id":  result.WinnerSessionID,
-		"winner_vendor":      result.WinnerVendor,
-		"winner_offer":       result.WinnerOffer,
+		"winner_session_id":   result.WinnerSessionID,
+		"winner_vendor":       result.WinnerVendor,
+		"winner_offer":        result.WinnerOffer,
 		"winner_discount_pct": result.WinnerDiscount,
-		"strategy":           result.Strategy,
-		"total_rounds":       result.TotalRounds,
-		"all_results":        result.AllResults,
-		"duration_ms":        result.DurationMs,
+		"strategy":            result.Strategy,
+		"total_rounds":        result.TotalRounds,
+		"all_results":         result.AllResults,
+		"duration_ms":         result.DurationMs,
 	}
 	return ns.jsonResult(resp)
 }
@@ -691,13 +725,12 @@ func (ns *NegotiationServer) handleGroupStatus(ctx context.Context, req mcp.Call
 			"created_at":    group.CreatedAt.Format(time.RFC3339),
 			"expires_at":    group.ExpiresAt.Format(time.RFC3339),
 		},
-		"members":       members,
-		"member_count":  len(members),
-		"duration_ms":   time.Since(start).Milliseconds(),
+		"members":      members,
+		"member_count": len(members),
+		"duration_ms":  time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
-
 
 // ─── Sell-Side Handlers ───
 
@@ -752,12 +785,12 @@ func (ns *NegotiationServer) handlePlaceBid(ctx context.Context, req mcp.CallToo
 	}
 
 	resp := map[string]any{
-		"bid_id":     bid.ID,
-		"listing_id": bid.ListingID,
-		"bidder_id":  bid.BidderID,
-		"amount":     bid.Amount,
-		"message":    bid.Message,
-		"created_at": bid.CreatedAt.Format(time.RFC3339),
+		"bid_id":      bid.ID,
+		"listing_id":  bid.ListingID,
+		"bidder_id":   bid.BidderID,
+		"amount":      bid.Amount,
+		"message":     bid.Message,
+		"created_at":  bid.CreatedAt.Format(time.RFC3339),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -787,9 +820,9 @@ func (ns *NegotiationServer) handleAcceptBid(ctx context.Context, req mcp.CallTo
 			"status":        result.Listing.Status,
 		},
 		"winning_bid": map[string]any{
-			"id":       result.WinningBid.ID,
+			"id":        result.WinningBid.ID,
 			"bidder_id": result.WinningBid.BidderID,
-			"amount":   result.WinningBid.Amount,
+			"amount":    result.WinningBid.Amount,
 		},
 		"status":      result.Status,
 		"final_price": result.FinalPrice,
@@ -813,11 +846,11 @@ func (ns *NegotiationServer) handleRejectBid(ctx context.Context, req mcp.CallTo
 	}
 
 	resp := map[string]any{
-		"status":         "rejected",
-		"listing_id":     listingID,
-		"bid_id":         bidID,
+		"status":          "rejected",
+		"listing_id":      listingID,
+		"bid_id":          bidID,
 		"counter_message": counterMessage,
-		"duration_ms":    time.Since(start).Milliseconds(),
+		"duration_ms":     time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -853,9 +886,140 @@ func (ns *NegotiationServer) handleListingStatus(ctx context.Context, req mcp.Ca
 			"created_at":    listing.CreatedAt.Format(time.RFC3339),
 			"expires_at":    listing.ExpiresAt.Format(time.RFC3339),
 		},
-		"bids":         bids,
-		"bid_count":    len(bids),
-		"duration_ms":  time.Since(start).Milliseconds(),
+		"bids":        bids,
+		"bid_count":   len(bids),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Calendar / Renewal Contract Handlers ───
+
+func (ns *NegotiationServer) handleAddContract(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	sku, _ := req.RequireString("sku")
+	seats := int(req.GetInt("seats", 0))
+	currentPrice := req.GetFloat("current_price_per_unit", 0)
+	renewalDateStr, _ := req.RequireString("renewal_date")
+
+	ns.logger.Debug("add_contract called", "vendor", vendor, "sku", sku, "seats", seats)
+
+	renewalDate, err := time.Parse(time.RFC3339, renewalDateStr)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Invalid renewal_date: must be RFC3339 format (e.g. 2026-06-15T00:00:00Z)")), nil
+	}
+
+	contract := &calendar.Contract{
+		UserID:       "default",
+		Vendor:       vendor,
+		SKU:          sku,
+		Seats:        seats,
+		CurrentPrice: currentPrice,
+		RenewalDate:  renewalDate,
+		Status:       "active",
+	}
+
+	if err := ns.calendarEng.Store().CreateContract(ctx, contract); err != nil {
+		ns.logger.Warn("add_contract failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to create contract: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"contract_id":            contract.ID,
+		"vendor":                 contract.Vendor,
+		"sku":                    contract.SKU,
+		"seats":                  contract.Seats,
+		"current_price_per_unit": contract.CurrentPrice,
+		"renewal_date":           contract.RenewalDate.Format(time.RFC3339),
+		"status":                 contract.Status,
+		"created_at":             contract.CreatedAt.Format(time.RFC3339),
+		"duration_ms":            time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListContracts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	filter := calendar.ContractFilter{
+		Vendor:       req.GetString("vendor", ""),
+		Status:       req.GetString("status", ""),
+		ExpiringSoon: int(req.GetInt("expiring_soon", 0)),
+	}
+
+	ns.logger.Debug("list_contracts called", "vendor", filter.Vendor, "status", filter.Status, "expiring_soon", filter.ExpiringSoon)
+
+	contracts, err := ns.calendarEng.Store().ListContracts(ctx, filter)
+	if err != nil {
+		ns.logger.Warn("list_contracts failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to list contracts: %s", err.Error())), nil
+	}
+
+	if contracts == nil {
+		contracts = []calendar.Contract{}
+	}
+
+	resp := map[string]any{
+		"contracts":   contracts,
+		"count":       len(contracts),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCheckRenewals(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	daysAhead := int(req.GetInt("days_ahead", 0))
+	if daysAhead <= 0 {
+		return mcp.NewToolResultError("days_ahead must be a positive integer"), nil
+	}
+
+	ns.logger.Debug("check_renewals called", "days_ahead", daysAhead)
+
+	checks, err := ns.calendarEng.CheckRenewals(ctx, daysAhead)
+	if err != nil {
+		ns.logger.Warn("check_renewals failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to check renewals: %s", err.Error())), nil
+	}
+
+	if checks == nil {
+		checks = []calendar.RenewalCheck{}
+	}
+
+	resp := map[string]any{
+		"renewals":    checks,
+		"count":       len(checks),
+		"days_ahead":  daysAhead,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleTriggerRenewal(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	contractID, _ := req.RequireString("contract_id")
+
+	ns.logger.Debug("trigger_renewal called", "contract_id", contractID)
+
+	session, err := ns.calendarEng.TriggerNegotiation(ctx, contractID)
+	if err != nil {
+		ns.logger.Warn("trigger_renewal failed", "contract_id", contractID, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to trigger renewal: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"session_id":    session.ID,
+		"status":        session.Status,
+		"outcome":       session.Outcome,
+		"vendor":        session.Vendor,
+		"current_offer": session.CurrentOffer,
+		"list_price":    session.ListPrice,
+		"rounds":        session.RoundsComplete,
+		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }

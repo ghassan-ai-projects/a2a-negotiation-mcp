@@ -81,12 +81,12 @@ type scoredOpportunity struct {
 func (e *Engine) generateCandidates(profile BusinessProfile) []NegotiationOpportunity {
 	// Industry-specific opportunity templates.
 	type template struct {
-		category        string
-		vendor          string
-		spend           float64
-		discountPct     float64
-		confidence      string
-		rationale       string
+		category    string
+		vendor      string
+		spend       float64
+		discountPct float64
+		confidence  string
+		rationale   string
 	}
 
 	// Build templates based on industry.

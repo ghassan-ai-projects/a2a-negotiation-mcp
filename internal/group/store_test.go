@@ -254,7 +254,7 @@ func TestGetActiveGroups(t *testing.T) {
 // ─── Engine Tests ───
 
 func TestComputeOffer_QuantityScaling(t *testing.T) {
-		gstore, pstore := setupTestStore(t)
+	gstore, pstore := setupTestStore(t)
 	ctx := context.Background()
 	logger := testLogger(t)
 	eng := NewEngine(gstore, pstore, logger)
@@ -286,7 +286,7 @@ func TestComputeOffer_QuantityScaling(t *testing.T) {
 }
 
 func TestComputeOffer_QuantityScaling_Tier2(t *testing.T) {
-		gstore, pstore := setupTestStore(t)
+	gstore, pstore := setupTestStore(t)
 	ctx := context.Background()
 	logger := testLogger(t)
 	eng := NewEngine(gstore, pstore, logger)
@@ -310,7 +310,7 @@ func TestComputeOffer_QuantityScaling_Tier2(t *testing.T) {
 }
 
 func TestComputeOffer_MemberScaling(t *testing.T) {
-		gstore, pstore := setupTestStore(t)
+	gstore, pstore := setupTestStore(t)
 	ctx := context.Background()
 	logger := testLogger(t)
 	eng := NewEngine(gstore, pstore, logger)
@@ -401,7 +401,7 @@ func TestComputeOffer_CapAt50Percent(t *testing.T) {
 }
 
 func TestComputeOffer_EmptyGroupError(t *testing.T) {
-		gstore, pstore := setupTestStore(t)
+	gstore, pstore := setupTestStore(t)
 	ctx := context.Background()
 	logger := testLogger(t)
 	eng := NewEngine(gstore, pstore, logger)

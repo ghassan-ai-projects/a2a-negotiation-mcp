@@ -26,13 +26,13 @@ type NegotiateRequest struct {
 
 // NegotiateResponse is the response from POST /a2a/negotiate.
 type NegotiateResponse struct {
-	MandateID  string         `json:"mandate_id"`
-	TaskID     string         `json:"task_id"`
-	SessionID  string         `json:"session_id"`
-	Status     string         `json:"status"`
-	Offer      float64        `json:"offer"`
-	ListPrice  float64        `json:"list_price"`
-	Strategy   string         `json:"strategy"`
-	Mandate    *Mandate       `json:"mandate,omitempty"`
-	Result     map[string]any `json:"result,omitempty"`
+	MandateID string         `json:"mandate_id"`
+	TaskID    string         `json:"task_id"`
+	SessionID string         `json:"session_id"`
+	Status    string         `json:"status"`
+	Offer     float64        `json:"offer"`
+	ListPrice float64        `json:"list_price"`
+	Strategy  string         `json:"strategy"`
+	Mandate   *Mandate       `json:"mandate,omitempty"`
+	Result    map[string]any `json:"result,omitempty"`
 }

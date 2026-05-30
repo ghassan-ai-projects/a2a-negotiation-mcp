@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	_ "modernc.org/sqlite"
 )
 

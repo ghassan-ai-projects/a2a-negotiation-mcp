@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/google/uuid"
 )
 
@@ -92,15 +92,15 @@ func (h *A2AHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 		Status:    sess.Status,
 		SessionID: sess.ID,
 		Result: map[string]any{
-			"vendor":            sess.Vendor,
-			"sku":               sess.SKU,
-			"strategy":          sess.Strategy,
-			"current_offer":     sess.CurrentOffer,
-			"list_price":        sess.ListPrice,
-			"rounds_completed":  sess.RoundsComplete,
-			"outcome":           sess.Outcome,
-			"created_at":        sess.CreatedAt.Format(time.RFC3339),
-			"updated_at":        sess.UpdatedAt.Format(time.RFC3339),
+			"vendor":           sess.Vendor,
+			"sku":              sess.SKU,
+			"strategy":         sess.Strategy,
+			"current_offer":    sess.CurrentOffer,
+			"list_price":       sess.ListPrice,
+			"rounds_completed": sess.RoundsComplete,
+			"outcome":          sess.Outcome,
+			"created_at":       sess.CreatedAt.Format(time.RFC3339),
+			"updated_at":       sess.UpdatedAt.Format(time.RFC3339),
 		},
 	})
 }
@@ -283,15 +283,15 @@ func (h *A2AHandler) handleQueryPriceTask(w http.ResponseWriter, ctx context.Con
 		Status:    "completed",
 		SessionID: taskID,
 		Result: map[string]any{
-			"vendor":                  result.Vendor,
-			"sku":                     result.SKU,
-			"list_price":              result.ListPrice,
-			"market_min":              result.MarketMin,
-			"market_max":              result.MarketMax,
-			"suggested_min":           result.SuggestedMin,
-			"suggested_max":           result.SuggestedMax,
-			"confidence":              result.Confidence,
-			"typical_discount_pct":    result.TypicalPct,
+			"vendor":               result.Vendor,
+			"sku":                  result.SKU,
+			"list_price":           result.ListPrice,
+			"market_min":           result.MarketMin,
+			"market_max":           result.MarketMax,
+			"suggested_min":        result.SuggestedMin,
+			"suggested_max":        result.SuggestedMax,
+			"confidence":           result.Confidence,
+			"typical_discount_pct": result.TypicalPct,
 		},
 	})
 }

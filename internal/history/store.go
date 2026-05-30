@@ -208,7 +208,6 @@ func (s *Store) GetHistory(ctx context.Context, vendor string, period string) (*
 		args = append([]any{vendor}, args...)
 	}
 
-
 	// Deal stats
 	var totalDeals int
 	var totalSavings float64

@@ -11,7 +11,7 @@ type Listing struct {
 	DesiredPrice float64   `json:"desired_price"`
 	MinPrice     float64   `json:"min_price,omitempty"`
 	Strategy     string    `json:"strategy"` // "auction", "haggling", "fixed"
-	Status       string    `json:"status"`  // "active", "negotiating", "sold", "withdrawn"
+	Status       string    `json:"status"`   // "active", "negotiating", "sold", "withdrawn"
 	CreatedAt    time.Time `json:"created_at"`
 	ExpiresAt    time.Time `json:"expires_at,omitempty"`
 }

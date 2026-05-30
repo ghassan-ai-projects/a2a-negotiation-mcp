@@ -135,12 +135,12 @@ func (ns *NegotiationServer) handleHistoryResource(ctx context.Context, req mcp.
 	}
 
 	data := map[string]any{
-		"uri":                    req.Params.URI,
-		"total_deals":            summary.TotalDeals,
-		"win_rate":               summary.WinRate,
+		"uri":                     req.Params.URI,
+		"total_deals":             summary.TotalDeals,
+		"win_rate":                summary.WinRate,
 		"avg_discount_percentage": summary.AvgDiscountPct,
-		"total_savings":          summary.TotalSavings,
-		"deals":                  summary.Deals,
+		"total_savings":           summary.TotalSavings,
+		"deals":                   summary.Deals,
 	}
 
 	b, _ := json.MarshalIndent(data, "", "  ")

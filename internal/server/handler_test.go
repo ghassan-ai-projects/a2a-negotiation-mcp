@@ -1,15 +1,17 @@
 package server
 
 import (
-	"io"
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -46,7 +48,15 @@ func setupTest(t *testing.T) *NegotiationServer {
 		t.Fatalf("sell.NewStore: %v", err)
 	}
 	seng := sell.NewEngine(sstore, logger)
-	return NewNegotiationServer(pstore, hstore, geng, seng, logger)
+
+	negEng := negotiation.NewEngine(pstore)
+	cstore, err := calendar.NewStore(pstore.DB())
+	if err != nil {
+		t.Fatalf("calendar.NewStore: %v", err)
+	}
+	ceng := calendar.NewEngine(cstore, negEng, hstore, pstore, logger)
+
+	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, logger)
 }
 
 func seedPricingData(t *testing.T, store *pricing.Store) {

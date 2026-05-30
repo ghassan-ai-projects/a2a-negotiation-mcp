@@ -32,10 +32,10 @@ const (
 // Mandate is an AP2-style mandate for agent-to-agent authorization.
 type Mandate struct {
 	ID        string         `json:"id"`
-	Type      string         `json:"type"`       // "intent" | "cart" | "payment"
-	Principal string         `json:"principal"`  // requesting agent identity
-	AgentID   string         `json:"agent_id"`   // responding agent identity
-	Status    string         `json:"status"`     // "pending" | "active" | "settled" | "cancelled"
+	Type      string         `json:"type"`      // "intent" | "cart" | "payment"
+	Principal string         `json:"principal"` // requesting agent identity
+	AgentID   string         `json:"agent_id"`  // responding agent identity
+	Status    string         `json:"status"`    // "pending" | "active" | "settled" | "cancelled"
 	ExpiresAt time.Time      `json:"expires_at"`
 	Terms     map[string]any `json:"terms"`
 	CreatedAt time.Time      `json:"created_at"`

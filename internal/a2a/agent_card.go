@@ -8,16 +8,16 @@ import (
 
 // AgentCard describes the agent's capabilities according to the A2A Agent Card spec.
 type AgentCard struct {
-	Schema             string           `json:"$schema,omitempty"`
-	Name               string           `json:"name"`
-	Description        string           `json:"description"`
-	URL                string           `json:"url"`
-	Version            string           `json:"version"`
-	Capabilities       []string         `json:"capabilities"`
-	Skills             []Skill          `json:"skills"`
-	Authentication     *Authentication  `json:"authentication,omitempty"`
-	DefaultInputModes  []string         `json:"defaultInputModes,omitempty"`
-	DefaultOutputModes []string         `json:"defaultOutputModes,omitempty"`
+	Schema             string          `json:"$schema,omitempty"`
+	Name               string          `json:"name"`
+	Description        string          `json:"description"`
+	URL                string          `json:"url"`
+	Version            string          `json:"version"`
+	Capabilities       []string        `json:"capabilities"`
+	Skills             []Skill         `json:"skills"`
+	Authentication     *Authentication `json:"authentication,omitempty"`
+	DefaultInputModes  []string        `json:"defaultInputModes,omitempty"`
+	DefaultOutputModes []string        `json:"defaultOutputModes,omitempty"`
 }
 
 // Skill describes a specific capability of the agent.

@@ -242,7 +242,7 @@ func TestSelectWinner_BestDiscount(t *testing.T) {
 	parEng, _, hstore, negEng := setupParallelTest(t)
 	ctx := context.Background()
 
-	idC := createAndSaveSession(t, ctx, negEng, hstore, "VendorC", "Standard", "aggressive")  // highest discount strategy
+	idC := createAndSaveSession(t, ctx, negEng, hstore, "VendorC", "Standard", "aggressive")   // highest discount strategy
 	idB := createAndSaveSession(t, ctx, negEng, hstore, "VendorB", "Standard", "conservative") // lowest discount strategy
 
 	result, err := parEng.RunParallel(ctx, parallel.ParallelConfig{

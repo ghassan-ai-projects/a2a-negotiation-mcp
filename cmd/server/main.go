@@ -12,8 +12,10 @@ import (
 	"syscall"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
@@ -92,8 +94,19 @@ func main() {
 	}
 	sellEngine := sell.NewEngine(sellStore, logger)
 
+	// Initialize negotiation engine for cross-package use
+	negEng := negotiation.NewEngine(pricingStore)
+
+	// Initialize calendar store and engine
+	calendarStore, err := calendar.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize calendar store", "error", err.Error())
+		os.Exit(1)
+	}
+	calendarEngine := calendar.NewEngine(calendarStore, negEng, historyStore, pricingStore, logger)
+
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, logger)
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
