@@ -17,17 +17,32 @@ import (
 
 // Engine manages webhook subscriptions and dispatches events to subscribers.
 type Engine struct {
-	store      *Store
-	httpClient *http.Client
-	logger     *slog.Logger
+        store      *Store
+        httpClient *http.Client
+        logger     *slog.Logger
+        backoffs   []time.Duration
 }
 
-// NewEngine creates a new webhook engine.
+// defaultBackoffs are the standard retry delays for webhook delivery.
+var defaultBackoffs = []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
+
+// NewEngine creates a new webhook engine with default backoff durations.
 func NewEngine(store *Store, logger *slog.Logger) *Engine {
 	return &Engine{
 		store:      store,
 		httpClient: &http.Client{Timeout: 30 * time.Second},
 		logger:     logger,
+		backoffs:   defaultBackoffs,
+	}
+}
+
+// NewEngineWithBackoff creates a webhook engine with custom backoff durations.
+func NewEngineWithBackoff(store *Store, logger *slog.Logger, backoffs []time.Duration) *Engine {
+	return &Engine{
+		store:      store,
+		httpClient: &http.Client{Timeout: 30 * time.Second},
+		logger:     logger,
+		backoffs:   backoffs,
 	}
 }
 
@@ -122,15 +137,13 @@ func (e *Engine) Dispatch(ctx context.Context, eventType string, data any) error
 
 // deliverWithRetry sends the webhook payload with retry and backoff.
 func (e *Engine) deliverWithRetry(ctx context.Context, sub Subscription, body []byte) error {
-	backoffs := []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
-
 	var lastErr error
-	for attempt := 0; attempt <= len(backoffs); attempt++ {
+	for attempt := 0; attempt <= len(e.backoffs); attempt++ {
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(backoffs[attempt-1]):
+			case <-time.After(e.backoffs[attempt-1]):
 			}
 		}
 
@@ -147,7 +160,7 @@ func (e *Engine) deliverWithRetry(ctx context.Context, sub Subscription, body []
 		return nil
 	}
 
-	return fmt.Errorf("webhook delivery failed after %d attempts: %w", len(backoffs)+1, lastErr)
+	return fmt.Errorf("webhook delivery failed after %d attempts: %w", len(e.backoffs)+1, lastErr)
 }
 
 // deliver sends a single webhook POST request with HMAC signature.

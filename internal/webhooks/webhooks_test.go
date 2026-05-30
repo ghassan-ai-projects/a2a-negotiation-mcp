@@ -46,6 +46,14 @@ func setupTestEngine(t *testing.T) (*Engine, *Store) {
 	eng := NewEngine(store, logger)
 	return eng, store
 }
+func setupTestEngineWithFastBackoff(t *testing.T) (*Engine, *Store) {
+	t.Helper()
+	store := setupTestStore(t)
+	logger := testLogger(t)
+	backoffs := []time.Duration{1 * time.Millisecond, 5 * time.Millisecond, 10 * time.Millisecond}
+	eng := NewEngineWithBackoff(store, logger, backoffs)
+	return eng, store
+}
 
 // ─── Store Tests ───
 
@@ -518,7 +526,7 @@ func TestEngine_Dispatch_NoSignatureWhenNoSecret(t *testing.T) {
 }
 
 func TestEngine_Dispatch_RetriesOn500(t *testing.T) {
-	eng, _ := setupTestEngine(t)
+	eng, _ := setupTestEngineWithFastBackoff(t)
 	ctx := context.Background()
 
 	attempts := make(chan int, 10)
