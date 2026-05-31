@@ -40,6 +40,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/esignature"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/chartexport"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/monitordash"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
@@ -113,6 +114,7 @@ type NegotiationServer struct {
 	calendarEng           *calendar.Engine
 	playbookEng           *playbook.Engine
         chartExportEng       *chartexport.Engine
+	monitorDashEng      *monitordash.Engine
 	trainingEng           *training.Engine
 	logger                *slog.Logger
 	learningEng           *learning.Engine
@@ -193,7 +195,7 @@ type NegotiationServer struct {
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -253,6 +255,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 	sentimentEng:          sentimentEng,
 		calendarEng:           calendarEngine,
         chartExportEng:       chartExportEng,
+		monitorDashEng:      monitorDashEng,
 		logger:                logger,
 		learningEng:           learningEng,
 		marketplaceEng:        marketplaceEngine,
@@ -1324,6 +1327,11 @@ func (ns *NegotiationServer) registerTools() {
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_chart_templates",
                 mcp.WithDescription("List predefined chart templates available for export."),
         ), ns.handleChartTemplates)
+
+        // P97: Real-Time Monitoring Dashboard
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_live_dashboard",
+                mcp.WithDescription("Return real-time monitoring dashboard data including active negotiations, system health, recent tool calls, and error rate."),
+        ), ns.handleLiveDashboard)
 
 }
 
@@ -6546,6 +6554,36 @@ func (ns *NegotiationServer) handleChartTemplates(ctx context.Context, req mcp.C
 		"templates":   templates,
 		"count":       len(templates),
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P97: Real-Time Monitoring Dashboard ───
+
+func (ns *NegotiationServer) handleLiveDashboard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("negotiate_live_dashboard called")
+
+	if ns.monitorDashEng == nil {
+		return mcp.NewToolResultError("Monitoring dashboard engine is not available"), nil
+	}
+
+	dash, err := ns.monitorDashEng.GetDashboard(ctx)
+	if err != nil {
+		ns.logger.Warn("negotiate_live_dashboard failed", "error", err.Error())
+		return mcp.NewToolResultError("Failed to get live dashboard: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"active_negotiations": dash.ActiveNegotiations,
+		"system_health":       dash.SystemHealth,
+		"last_tool_calls":     dash.LastToolCalls,
+		"error_rate_5min":     dash.ErrorRate5Min,
+		"uptime_seconds":      dash.UptimeSeconds,
+		"total_tools":         dash.TotalTools,
+		"timestamp":           dash.Timestamp,
+		"duration_ms":         time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
