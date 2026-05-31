@@ -98,7 +98,7 @@ func TestCalculate_InvalidInput(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name             string
+		name                                string
 		current, negotiated, impl, overhead float64
 	}{
 		{"zero current", 0, 100, 0, 0},

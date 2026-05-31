@@ -60,11 +60,11 @@ func (e *Engine) Simulate(vendor string, strategy string, budget float64, rounds
 			discountPct := (budget - offer) / budget * 100
 
 			simRounds[i] = SimulationRound{
-				RoundNumber:   roundNum,
-				Offer:         offer,
-				DiscountPct:   math.Round(discountPct*100) / 100,
-				Counterparty:  "vendor",
-				Note:          fmt.Sprintf("Vendor lowered price by %.1f%% (strategy: %s)", reduction*100, strategy),
+				RoundNumber:  roundNum,
+				Offer:        offer,
+				DiscountPct:  math.Round(discountPct*100) / 100,
+				Counterparty: "vendor",
+				Note:         fmt.Sprintf("Vendor lowered price by %.1f%% (strategy: %s)", reduction*100, strategy),
 			}
 		} else {
 			// Buyer's turn (even rounds: 2, 4, 6, ...)
@@ -77,11 +77,11 @@ func (e *Engine) Simulate(vendor string, strategy string, budget float64, rounds
 			discountPct := (budget - offer) / budget * 100
 
 			simRounds[i] = SimulationRound{
-				RoundNumber:   roundNum,
-				Offer:         offer,
-				DiscountPct:   math.Round(discountPct*100) / 100,
-				Counterparty:  "buyer",
-				Note:          fmt.Sprintf("Buyer increased offer by %.1f%% (strategy: %s)", increase*100, strategy),
+				RoundNumber:  roundNum,
+				Offer:        offer,
+				DiscountPct:  math.Round(discountPct*100) / 100,
+				Counterparty: "buyer",
+				Note:         fmt.Sprintf("Buyer increased offer by %.1f%% (strategy: %s)", increase*100, strategy),
 			}
 		}
 	}

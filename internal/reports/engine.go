@@ -108,11 +108,11 @@ func (e *Engine) savingsSection(ctx context.Context, db *sql.DB, period, vendor 
 	}
 
 	return map[string]any{
-		"total_list_price":  totalList,
-		"total_final_price": totalFinal,
-		"total_savings":     savings,
+		"total_list_price":   totalList,
+		"total_final_price":  totalFinal,
+		"total_savings":      savings,
 		"savings_percentage": savingsPct,
-		"deal_count":        count,
+		"deal_count":         count,
 	}, nil
 }
 

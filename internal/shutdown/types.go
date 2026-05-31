@@ -4,5 +4,5 @@ package shutdown
 type ShutdownResult struct {
 	Status           string   `json:"status"`
 	ResourcesCleaned []string `json:"resources_cleaned"`
-	DurationMs      int64    `json:"duration_ms"`
+	DurationMs       int64    `json:"duration_ms"`
 }

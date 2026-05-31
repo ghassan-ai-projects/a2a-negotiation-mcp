@@ -703,11 +703,11 @@ func TestEngine_Dispatch_EventBodyStructure(t *testing.T) {
 	}
 
 	testData := map[string]any{
-		"vendor":  "Slack",
-		"sku":     "pro-seat",
-		"seats":   10,
-		"total":   100.0,
-		"buyer":   "acme-corp",
+		"vendor": "Slack",
+		"sku":    "pro-seat",
+		"seats":  10,
+		"total":  100.0,
+		"buyer":  "acme-corp",
 	}
 	if err := eng.Dispatch(ctx, "deal.closed", testData); err != nil {
 		t.Fatalf("Dispatch: %v", err)

@@ -10,8 +10,8 @@ import (
 )
 
 type mockClosable struct {
-	closed    bool
-	closeErr  error
+	closed   bool
+	closeErr error
 }
 
 func (m *mockClosable) Close() error {

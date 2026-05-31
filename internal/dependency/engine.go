@@ -69,8 +69,9 @@ func (e *Engine) Parse(data []byte) (*DependencyReport, error) {
 
 // parseRequireLine extracts module and version from a require line.
 // Input examples:
-//   github.com/google/uuid v1.6.0
-//   github.com/mark3labs/mcp-go v0.54.1 // indirect
+//
+//	github.com/google/uuid v1.6.0
+//	github.com/mark3labs/mcp-go v0.54.1 // indirect
 func parseRequireLine(line string) *DepEntry {
 	line = strings.TrimSpace(line)
 	if line == "" {

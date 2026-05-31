@@ -2,8 +2,8 @@ package export
 
 // ExportRequest describes the parameters for a data export operation.
 type ExportRequest struct {
-	Format   string `json:"format"`            // "csv" or "json"
-	Type     string `json:"type"`              // "deals", "sessions", "analytics", "all"
+	Format   string `json:"format"` // "csv" or "json"
+	Type     string `json:"type"`   // "deals", "sessions", "analytics", "all"
 	Vendor   string `json:"vendor,omitempty"`
 	DateFrom string `json:"date_from,omitempty"`
 	DateTo   string `json:"date_to,omitempty"`

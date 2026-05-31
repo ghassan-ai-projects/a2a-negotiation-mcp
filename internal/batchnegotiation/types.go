@@ -15,11 +15,11 @@ type BatchItem struct {
 
 // BatchResult is the output of a batch negotiation.
 type BatchResult struct {
-	BatchID     string            `json:"batch_id"`
-	Results     []BatchItemResult `json:"results"`
+	BatchID      string            `json:"batch_id"`
+	Results      []BatchItemResult `json:"results"`
 	TotalSavings float64           `json:"total_savings"`
-	DurationMs  int64             `json:"duration_ms"`
-	CreatedAt   string            `json:"created_at"`
+	DurationMs   int64             `json:"duration_ms"`
+	CreatedAt    string            `json:"created_at"`
 }
 
 // BatchItemResult is the result of a single item in a batch.

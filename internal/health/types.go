@@ -5,8 +5,8 @@ import "time"
 // VendorHealth represents a vendor's financial/market health assessment.
 type VendorHealth struct {
 	Vendor      string    `json:"vendor"`
-	Score       int       `json:"score"`        // 1-100, lower = struggling = easier to negotiate
-	Category    string    `json:"category"`     // "struggling", "stable", "growing"
+	Score       int       `json:"score"`    // 1-100, lower = struggling = easier to negotiate
+	Category    string    `json:"category"` // "struggling", "stable", "growing"
 	Signals     []Signal  `json:"signals"`
 	LastUpdated time.Time `json:"last_updated"`
 }

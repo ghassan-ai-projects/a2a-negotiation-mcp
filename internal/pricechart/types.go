@@ -2,9 +2,9 @@ package pricechart
 
 // ChartData holds monthly price chart data and a summary.
 type ChartData struct {
-	Labels   []string        `json:"labels"`   // monthly labels "2026-01", "2026-02"
-	Datasets []ChartDataset  `json:"datasets"`
-	Summary  ChartSummary    `json:"summary"`
+	Labels   []string       `json:"labels"` // monthly labels "2026-01", "2026-02"
+	Datasets []ChartDataset `json:"datasets"`
+	Summary  ChartSummary   `json:"summary"`
 }
 
 // ChartDataset is a single series in the chart.

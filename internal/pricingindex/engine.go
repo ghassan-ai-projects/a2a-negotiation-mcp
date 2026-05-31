@@ -9,7 +9,7 @@ import (
 )
 
 type rawRow struct {
-	vendor, category               string
+	vendor, category                      string
 	listPrice, minObs, maxObs, typicalPct float64
 }
 

@@ -100,8 +100,8 @@ func (e *Engine) Export(ctx context.Context, req ExportRequest) (*ExportResult, 
 		sessions, _ := e.querySessions(ctx, req.Vendor, req.DateFrom, req.DateTo)
 
 		allData := map[string]any{
-			"deals":     deals,
-			"sessions":  sessions,
+			"deals":       deals,
+			"sessions":    sessions,
 			"exported_at": now.Format(time.RFC3339),
 		}
 		if req.Format == "csv" {
@@ -336,7 +336,7 @@ func sessionsToJSON(sessions []history.SessionRecord) string {
 			Strategy: s.Strategy, Budget: s.Budget,
 			Status: s.Status, CurrentOffer: s.CurrentOffer,
 			ListPrice: s.ListPrice, RoundsComplete: s.RoundsComplete,
-			Outcome: s.Outcome,
+			Outcome:   s.Outcome,
 			CreatedAt: s.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: s.UpdatedAt.Format(time.RFC3339),
 		}

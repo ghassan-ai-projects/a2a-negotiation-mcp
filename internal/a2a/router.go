@@ -2,8 +2,8 @@ package a2a
 
 import (
 	"log/slog"
-	"strconv"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"

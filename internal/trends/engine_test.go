@@ -369,8 +369,8 @@ func TestCheckSeasonal(t *testing.T) {
 
 	// Create snapshots with higher Q4 prices
 	snapshots := []PriceSnapshot{
-		{Date: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), Price: 100}, // Q1
-		{Date: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC), Price: 105}, // Q1
+		{Date: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), Price: 100},  // Q1
+		{Date: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC), Price: 105},  // Q1
 		{Date: time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC), Price: 120}, // Q4
 		{Date: time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC), Price: 125}, // Q4
 	}
@@ -385,8 +385,8 @@ func TestCheckSeasonal(t *testing.T) {
 
 func TestCheckSeasonal_NoSeasonality(t *testing.T) {
 	snapshots := []PriceSnapshot{
-		{Date: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), Price: 100}, // Q1
-		{Date: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC), Price: 102}, // Q1
+		{Date: time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC), Price: 100},  // Q1
+		{Date: time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC), Price: 102},  // Q1
 		{Date: time.Date(2026, 10, 15, 0, 0, 0, 0, time.UTC), Price: 103}, // Q4
 		{Date: time.Date(2026, 11, 15, 0, 0, 0, 0, time.UTC), Price: 101}, // Q4
 	}

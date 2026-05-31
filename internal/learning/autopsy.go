@@ -22,7 +22,7 @@ type Autopsy struct {
 // FailurePattern describes a recurring failure mode for a vendor.
 type FailurePattern struct {
 	Vendor       string `json:"vendor"`
-	Pattern      string `json:"pattern"`       // e.g., "aggressive tactics fail with Salesforce"
+	Pattern      string `json:"pattern"` // e.g., "aggressive tactics fail with Salesforce"
 	FailCount    int    `json:"fail_count"`
 	SuggestedFix string `json:"suggested_fix"` // e.g., "switch to balanced strategy"
 }

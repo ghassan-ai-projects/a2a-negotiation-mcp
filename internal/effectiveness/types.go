@@ -15,11 +15,11 @@ type ScoreTrendPoint struct {
 
 // EffectivenessScore is the complete effectiveness score response.
 type EffectivenessScore struct {
-	UserID      string             `json:"user_id"`
-	Period      string             `json:"period"`
+	UserID       string            `json:"user_id"`
+	Period       string            `json:"period"`
 	OverallScore float64           `json:"overall_score"` // 0-100
-	Components  []ScoreComponent   `json:"components"`
-	Trend       []ScoreTrendPoint  `json:"trend"`
-	VsAverage   float64            `json:"vs_average"`
-	Tips        []string           `json:"tips"`
+	Components   []ScoreComponent  `json:"components"`
+	Trend        []ScoreTrendPoint `json:"trend"`
+	VsAverage    float64           `json:"vs_average"`
+	Tips         []string          `json:"tips"`
 }

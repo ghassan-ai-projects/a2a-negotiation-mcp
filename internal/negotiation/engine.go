@@ -6,10 +6,10 @@ import (
 	"math"
 	"time"
 
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ierrors"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
 )
 
 // Session represents a negotiation session.

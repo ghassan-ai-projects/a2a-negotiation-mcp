@@ -169,9 +169,9 @@ func TestLeaderboard_Ordering(t *testing.T) {
 
 	for _, u := range users {
 		eng.store.UpsertStreak(ctx, &Streak{
-			UserID:        u.id,
-			CurrentStreak: 1,
-			LongestStreak: 1,
+			UserID:            u.id,
+			CurrentStreak:     1,
+			LongestStreak:     1,
 			LastNegotiationAt: time.Now().UTC(),
 		})
 

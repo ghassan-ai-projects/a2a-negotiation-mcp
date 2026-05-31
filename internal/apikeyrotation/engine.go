@@ -79,7 +79,7 @@ func (e *Engine) RotateKey(keyID string) (*RotationResult, error) {
 
 	newEntry := KeyHealthEntry{
 		KeyID:       newKeyID,
-		Owner:       "",       // caller can update owner via metadata if needed
+		Owner:       "", // caller can update owner via metadata if needed
 		Status:      "active",
 		CreatedAt:   now.Format(time.RFC3339),
 		ExpiresAt:   now.AddDate(0, 0, defaultExpiryDays).Format(time.RFC3339),

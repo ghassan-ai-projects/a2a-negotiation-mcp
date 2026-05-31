@@ -199,8 +199,8 @@ func TestRankFlexibility_Limit(t *testing.T) {
 
 func TestNegotiabilityLabels(t *testing.T) {
 	tests := []struct {
-		avgPct    float64
-		expected  string
+		avgPct   float64
+		expected string
 	}{
 		{0, "very_rigid"},
 		{4.9, "very_rigid"},

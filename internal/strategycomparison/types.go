@@ -10,11 +10,11 @@ type StrategyComparisonRequest struct {
 
 // StrategyComparisonResult is the output of a strategy comparison.
 type StrategyComparisonResult struct {
-	Vendor       string          `json:"vendor"`
-	SKU          string          `json:"sku"`
-	Budget       float64         `json:"budget"`
+	Vendor       string           `json:"vendor"`
+	SKU          string           `json:"sku"`
+	Budget       float64          `json:"budget"`
 	Results      []StrategyResult `json:"results"`
-	BestStrategy string          `json:"best_strategy"`
+	BestStrategy string           `json:"best_strategy"`
 }
 
 // StrategyResult is the result of a single strategy simulation.

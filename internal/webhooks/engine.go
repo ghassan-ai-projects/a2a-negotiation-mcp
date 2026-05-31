@@ -17,10 +17,10 @@ import (
 
 // Engine manages webhook subscriptions and dispatches events to subscribers.
 type Engine struct {
-        store      *Store
-        httpClient *http.Client
-        logger     *slog.Logger
-        backoffs   []time.Duration
+	store      *Store
+	httpClient *http.Client
+	logger     *slog.Logger
+	backoffs   []time.Duration
 }
 
 // defaultBackoffs are the standard retry delays for webhook delivery.

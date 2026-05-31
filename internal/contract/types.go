@@ -6,7 +6,7 @@ type ContractTerms struct {
 	SKU               string `json:"sku,omitempty"`
 	StartDate         string `json:"start_date,omitempty"`
 	EndDate           string `json:"end_date"`
-	RenewalTermDays   int    `json:"renewal_term_days"`   // days before renewal to act
+	RenewalTermDays   int    `json:"renewal_term_days"` // days before renewal to act
 	AutoRenew         bool   `json:"auto_renew"`
 	PriceLockPeriod   string `json:"price_lock_period,omitempty"`
 	TerminationNotice int    `json:"termination_notice_days"`

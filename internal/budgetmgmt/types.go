@@ -22,18 +22,18 @@ type BudgetForecast struct {
 
 // BudgetDashboard is the per-month dashboard response.
 type BudgetDashboard struct {
-	Month       string           `json:"month"`
-	TotalBudget float64          `json:"total_budget"`
-	TotalSpent  float64          `json:"total_spent"`
-	Items       []MonthlyBudget  `json:"items"`
+	Month       string          `json:"month"`
+	TotalBudget float64         `json:"total_budget"`
+	TotalSpent  float64         `json:"total_spent"`
+	Items       []MonthlyBudget `json:"items"`
 }
 
 // SetBudgetResult is the response for setting a monthly budget.
 type SetBudgetResult struct {
-	Vendor string `json:"vendor"`
-	Month  string `json:"month"`
+	Vendor string  `json:"vendor"`
+	Month  string  `json:"month"`
 	Amount float64 `json:"amount"`
-	Status string `json:"status"`
+	Status string  `json:"status"`
 }
 
 // RolloverResult is the response for rolling over unused budget.

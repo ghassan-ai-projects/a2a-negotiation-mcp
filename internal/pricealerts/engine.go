@@ -12,17 +12,17 @@ type LatestPriceFn func(ctx context.Context, vendor, sku string) (float64, error
 
 // Engine implements price drop alert logic.
 type Engine struct {
-	store       *Store
-	getLatest   LatestPriceFn
-	logger      *slog.Logger
+	store     *Store
+	getLatest LatestPriceFn
+	logger    *slog.Logger
 }
 
 // NewEngine creates a price alert engine.
 func NewEngine(store *Store, getLatest LatestPriceFn, logger *slog.Logger) *Engine {
 	return &Engine{
-		store:       store,
-		getLatest:   getLatest,
-		logger:      logger,
+		store:     store,
+		getLatest: getLatest,
+		logger:    logger,
 	}
 }
 

@@ -13,9 +13,9 @@ import (
 
 // Engine manages batch negotiation operations.
 type Engine struct {
-	store       *Store
+	store        *Store
 	historyStore *history.Store
-	logger      *slog.Logger
+	logger       *slog.Logger
 }
 
 // NewEngine creates a batchnegotiation Engine.

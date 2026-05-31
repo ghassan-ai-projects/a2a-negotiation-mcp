@@ -16,7 +16,7 @@ func TestEngine_CheckRenewals_Mixed(t *testing.T) {
 	now := time.Now()
 	contractsFn := func(ctx context.Context, daysAhead int) ([]ContractRow, error) {
 		return []ContractRow{
-			{ID: "c1", Vendor: "Slack", SKU: "Pro", RenewalDate: now.AddDate(0, 0, 3).Format(time.DateOnly)},   // 3 days → critical
+			{ID: "c1", Vendor: "Slack", SKU: "Pro", RenewalDate: now.AddDate(0, 0, 3).Format(time.DateOnly)},    // 3 days → critical
 			{ID: "c2", Vendor: "GitHub", SKU: "Team", RenewalDate: now.AddDate(0, 0, 15).Format(time.DateOnly)}, // 15 days → soon
 			{ID: "c3", Vendor: "AWS", SKU: "Basic", RenewalDate: now.AddDate(0, 0, 45).Format(time.DateOnly)},   // 45 days → upcoming
 		}, nil

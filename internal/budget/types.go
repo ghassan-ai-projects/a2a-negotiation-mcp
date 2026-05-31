@@ -11,7 +11,7 @@ type VendorBudget struct {
 
 // BudgetTrend represents a single monthly data point in the dashboard trend.
 type BudgetTrend struct {
-	Month  string  `json:"month"`  // "2026-05"
+	Month  string  `json:"month"` // "2026-05"
 	Budget float64 `json:"budget"`
 	Actual float64 `json:"actual"`
 }

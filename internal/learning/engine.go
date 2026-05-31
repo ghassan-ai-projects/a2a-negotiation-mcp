@@ -114,10 +114,10 @@ func (e *Engine) GetRecommendation(ctx context.Context, vendor string) (*Strateg
 	}
 
 	type strategyRow struct {
-		name   string
-		count  int
-		avg    float64
-		wins   int
+		name  string
+		count int
+		avg   float64
+		wins  int
 	}
 
 	var rowsData []strategyRow
@@ -278,10 +278,10 @@ func (e *Engine) GetGlobalInsights(ctx context.Context) (map[string]interface{},
 	}
 
 	return map[string]interface{}{
-		"total_outcomes":      totalOutcomes,
-		"total_accepted":      totalAccepted,
-		"overall_win_rate":    overallWinRate,
-		"strategies":          perStrategy,
-		"top_vendors":         perVendor,
+		"total_outcomes":   totalOutcomes,
+		"total_accepted":   totalAccepted,
+		"overall_win_rate": overallWinRate,
+		"strategies":       perStrategy,
+		"top_vendors":      perVendor,
 	}, nil
 }

@@ -198,9 +198,9 @@ func (e *Engine) CheckAndAwardBadges(ctx context.Context, userID string, streak 
 // ─── Badge Definitions ───
 
 type badgeDef struct {
-	ID   string
-	Name string
-	Icon string
+	ID    string
+	Name  string
+	Icon  string
 	Check func(ctx context.Context, store *Store, userID string, streak *Streak, eng *learning.Engine) (bool, error)
 }
 

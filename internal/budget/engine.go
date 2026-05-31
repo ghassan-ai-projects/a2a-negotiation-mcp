@@ -10,9 +10,9 @@ import (
 
 // Engine manages budget vs actual calculations.
 type Engine struct {
-	store       *Store
-	historyDB   *sql.DB
-	logger      *slog.Logger
+	store     *Store
+	historyDB *sql.DB
+	logger    *slog.Logger
 }
 
 // NewEngine creates a budget Engine.

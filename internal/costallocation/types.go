@@ -12,10 +12,10 @@ type CostAllocation struct {
 
 // AllocationReport is the full cost allocation report.
 type AllocationReport struct {
-	Period       string                    `json:"period"`
-	TotalSpend   float64                   `json:"total_spend"`
-	ByDepartment []DeptAllocation          `json:"by_department"`
-	ByVendorDept []VendorDeptAllocation    `json:"by_vendor_per_dept"`
+	Period       string                 `json:"period"`
+	TotalSpend   float64                `json:"total_spend"`
+	ByDepartment []DeptAllocation       `json:"by_department"`
+	ByVendorDept []VendorDeptAllocation `json:"by_vendor_per_dept"`
 }
 
 // DeptAllocation is a department-level allocation summary.

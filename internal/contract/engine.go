@@ -31,7 +31,7 @@ var (
 	autoRenewPattern = regexp.MustCompile(`(?i)(automatically\s+renew|auto-renews?|auto\s+renewal|renews\s+automatically)`)
 
 	// terminationPattern matches notice periods like "30 days notice", "60-day notice", "cancel within X days"
-	terminationPattern = regexp.MustCompile(`(?i)(?:cancel|cancelled|terminat(?:e|ion|ing)?|notice)\s+(?:within\s+)?(\d+)\s*(?:-|\s)?day`)
+	terminationPattern  = regexp.MustCompile(`(?i)(?:cancel|cancelled|terminat(?:e|ion|ing)?|notice)\s+(?:within\s+)?(\d+)\s*(?:-|\s)?day`)
 	terminationPattern2 = regexp.MustCompile(`(?i)(\d+)\s*(?:-|\s)?days?\s+(?:notice|cancel|cancellation)`)
 
 	// priceLockPattern matches price lock / guarantee periods
