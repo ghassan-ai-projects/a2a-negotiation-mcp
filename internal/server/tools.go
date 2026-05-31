@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -69,6 +70,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
 	"github.com/google/uuid"
@@ -142,10 +146,13 @@ type NegotiationServer struct {
 	autocompleteEng *autocomplete.Engine
 	metricsEng      *metrics.Engine
 	shutdownEng     *shutdown.Engine
+	coverageEng     *coverage.Engine
+	dependencyEng   *dependency.Engine
+	contribguideEng *contribguide.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -249,6 +256,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		autocompleteEng: autocompleteEng,
 		metricsEng:      metricsEng,
 		shutdownEng:     shutdownEng,
+		coverageEng:     coverageEng,
+		dependencyEng:   dependencyEng,
+		contribguideEng: contribguideEng,
 	}
 
 	ns.registerTools()
@@ -999,6 +1009,22 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_shutdown",
 		mcp.WithDescription("Perform graceful shutdown of the negotiation server. Closes database connections and other resources."),
 	), ns.handleShutdown)
+
+	// Tool: negotiate_coverage
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_coverage",
+		mcp.WithDescription("Generate a code coverage report by running go test -cover on the project. Returns per-package coverage percentages and recommendations."),
+	), ns.handleCoverage)
+
+	// Tool: negotiate_dependencies
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_dependencies",
+		mcp.WithDescription("Parse go.mod to produce a dependency report. Returns direct and indirect dependencies with version information."),
+		mcp.WithString("format", mcp.Description("Output format: json (default)")),
+	), ns.handleDependencies)
+
+	// Tool: negotiate_contribution_guide
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_contribution_guide",
+		mcp.WithDescription("Generate a CONTRIBUTING.md guide based on the project's structure. Includes setup, build, test, and conventions."),
+	), ns.handleContributionGuide)
 }
 
 // ─── Tool Handlers ───
@@ -4820,6 +4846,83 @@ func (ns *NegotiationServer) handleShutdown(ctx context.Context, req mcp.CallToo
 		"status":             result.Status,
 		"resources_cleaned":  result.ResourcesCleaned,
 		"duration_ms":        result.DurationMs,
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCoverage(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ns.logger.Debug("negotiate_coverage called")
+
+	if ns.coverageEng == nil {
+		return mcp.NewToolResultError("Coverage engine is not available"), nil
+	}
+
+	report, err := ns.coverageEng.Run()
+	if err != nil {
+		ns.logger.Warn("negotiate_coverage failed", "error", err.Error())
+		return mcp.NewToolResultError("Coverage report failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"overall_pct":       report.OverallPct,
+		"packages":          report.Packages,
+		"total_tests":       report.TotalTests,
+		"untested_packages": report.UntestedPackages,
+		"recommendation":    report.Recommendation,
+		"duration_ms":       time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleDependencies(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ns.logger.Debug("negotiate_dependencies called")
+
+	if ns.dependencyEng == nil {
+		return mcp.NewToolResultError("Dependency engine is not available"), nil
+	}
+
+	modData, err := os.ReadFile("go.mod")
+	if err != nil {
+		ns.logger.Warn("negotiate_dependencies failed", "error", err.Error())
+		return mcp.NewToolResultError("Failed to read go.mod: " + err.Error()), nil
+	}
+
+	report, err := ns.dependencyEng.Parse(modData)
+	if err != nil {
+		ns.logger.Warn("negotiate_dependencies failed", "error", err.Error())
+		return mcp.NewToolResultError("Dependency report failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"direct":      report.Direct,
+		"indirect":    report.Indirect,
+		"total_count": report.TotalCount,
+		"duration_ms":  time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleContributionGuide(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ns.logger.Debug("negotiate_contribution_guide called")
+
+	if ns.contribguideEng == nil {
+		return mcp.NewToolResultError("Contribution guide engine is not available"), nil
+	}
+
+	// Determine project root from the working directory
+	guide, err := ns.contribguideEng.Generate(".")
+	if err != nil {
+		ns.logger.Warn("negotiate_contribution_guide failed", "error", err.Error())
+		return mcp.NewToolResultError("Contribution guide generation failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"content":   guide.Content,
+		"sections":  guide.Sections,
+		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }

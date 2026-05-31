@@ -49,12 +49,15 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
@@ -438,7 +441,12 @@ func main() {
 	// Initialize shutdown engine (P74)
 	shutdownEng := shutdown.NewEngine()
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, logger)
+	// Initialize coverage, dependency, and contrib guide engines (P75-P77)
+	coverageEng := coverage.NewEngine()
+	dependencyEng := dependency.NewEngine()
+	contribguideEng := contribguide.NewEngine()
+
+negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())
