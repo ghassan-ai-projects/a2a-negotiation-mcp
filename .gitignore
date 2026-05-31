@@ -31,3 +31,14 @@ go.work.sum
 # .idea/
 # .vscode/
 bin/
+# OpenClaw workspace files (tracked in orchestrator workspace, not here)
+.openclaw/
+AGENTS.md
+SOUL.md
+USER.md
+IDENTITY.md
+MEMORY.md
+TOOLS.md
+TOOLS.md
+HEARTBEAT.md
+
