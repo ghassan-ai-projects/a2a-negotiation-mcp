@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/aiperformance"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apikeyrotation"
@@ -161,11 +162,12 @@ type NegotiationServer struct {
 	coverageEng           *coverage.Engine
 	dependencyEng         *dependency.Engine
 	contribguideEng       *contribguide.Engine
-	industryReportsStore   *industryreports.Store
+	industryReportsStore  *industryreports.Store
+	aiPerfStore           *aiperformance.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -277,6 +279,8 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		dataRetentionEng:      dataRetentionEng,
 		playbookEng:           playbookEng,
 		trainingEng:           trainingEng,
+		industryReportsStore:  industryReportsStore,
+		aiPerfStore:           aiPerfStore,
 	}
 
 	ns.registerTools()
@@ -1113,6 +1117,17 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Get details of a saved industry report by ID."),
 		mcp.WithInteger("report_id", mcp.Required(), mcp.Description("Report ID")),
 	), ns.handleGetReport)
+
+	// Tool: negotiate_ai_performance
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_ai_performance",
+		mcp.WithDescription("Log an AI agent performance call. Use this to track latency, token usage, success rate, and negotiation type for any AI model used during a negotiation workflow."),
+		mcp.WithString("model", mcp.Required(), mcp.Description("AI model name (e.g. gpt-4, claude-3)")),
+		mcp.WithString("tool_name", mcp.Required(), mcp.Description("Name of the tool invoked by the AI agent")),
+		mcp.WithNumber("latency_ms", mcp.Required(), mcp.Description("Response latency in milliseconds")),
+		mcp.WithNumber("tokens_used", mcp.Required(), mcp.Description("Number of tokens consumed")),
+		mcp.WithBoolean("success", mcp.Required(), mcp.Description("Whether the call was successful")),
+		mcp.WithString("negotiation_type", mcp.Description("Type of negotiation (e.g. price_query, create_session, strategy)")),
+	), ns.handleAIPerformance)
 }
 
 // ─── Tool Handlers ───
@@ -5281,11 +5296,11 @@ func (ns *NegotiationServer) handleSaveReport(ctx context.Context, req mcp.CallT
 	}
 
 	resp := map[string]any{
-		"id":         report.ID,
-		"title":      report.Title,
-		"category":   report.Category,
-		"source":     report.Source,
-		"created_at": report.CreatedAt,
+		"id":          report.ID,
+		"title":       report.Title,
+		"category":    report.Category,
+		"source":      report.Source,
+		"created_at":  report.CreatedAt,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -5336,6 +5351,62 @@ func (ns *NegotiationServer) handleGetReport(ctx context.Context, req mcp.CallTo
 		"source":      report.Source,
 		"created_at":  report.CreatedAt,
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P84: AI Agent Performance Handler ───
+
+func (ns *NegotiationServer) handleAIPerformance(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	model, err := req.RequireString("model")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: model"), nil
+	}
+	toolName, err := req.RequireString("tool_name")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: tool_name"), nil
+	}
+	latencyMs, err := req.RequireFloat("latency_ms")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: latency_ms"), nil
+	}
+	tokensUsed, err := req.RequireFloat("tokens_used")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: tokens_used"), nil
+	}
+	success, err := req.RequireBool("success")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: success"), nil
+	}
+	negotiationType := req.GetString("negotiation_type", "")
+
+	ns.logger.Debug("negotiate_ai_performance called",
+		"model", model,
+		"tool_name", toolName,
+		"latency_ms", latencyMs,
+		"tokens_used", tokensUsed,
+		"success", success,
+		"negotiation_type", negotiationType,
+	)
+
+	entry, err := ns.aiPerfStore.LogCall(ctx, model, toolName, int(latencyMs), int(tokensUsed), success, negotiationType)
+	if err != nil {
+		ns.logger.Warn("negotiate_ai_performance failed", "error", err.Error())
+		return mcp.NewToolResultError("Log AI performance failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":               entry.ID,
+		"model":            entry.Model,
+		"tool_name":        entry.ToolName,
+		"latency_ms":       entry.LatencyMs,
+		"tokens_used":      entry.TokensUsed,
+		"success":          entry.Success,
+		"negotiation_type": entry.NegotiationType,
+		"created_at":       entry.CreatedAt,
+		"duration_ms":      time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }

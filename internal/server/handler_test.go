@@ -70,7 +70,7 @@ func setupTest(t *testing.T) *NegotiationServer {
 	}
 	slaEng := sla.NewEngine(slastore, logger)
 
-	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, heng, nil, slaEng, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, logger)
+	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, heng, nil, slaEng, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, logger)
 }
 
 func seedPricingData(t *testing.T, store *pricing.Store) {
@@ -94,8 +94,6 @@ func seedPricingData(t *testing.T, store *pricing.Store) {
 		{"DeepSeek", "ai", "deepseek-chat", "DeepSeek Chat", 1.10, 0.27, 1.10, 15, "/1M_input_tokens"},
 		{"Mistral", "ai", "mistral-small", "Mistral Small", 0.60, 0.20, 0.60, 15, "/1M_input_tokens"},
 		{"OpenAI", "ai", "dall-e-3", "OpenAI DALL-E 3", 0.120, 0.040, 0.120, 15, "/image"},
-
-
 	}
 
 	for _, v := range vendors {
