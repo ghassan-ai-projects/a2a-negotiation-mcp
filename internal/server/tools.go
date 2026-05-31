@@ -34,6 +34,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/datresidency"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
@@ -184,10 +185,11 @@ type NegotiationServer struct {
 	esigEng *esignature.Engine
 	clausesStore *contractclauses.Store
 	complianceEng       *compliance.Engine
+	residencyStore *datresidency.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -310,6 +312,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 summarizerEng:  summarizerEng,
                 clausesStore:         clausesStore,
                 complianceEng:       complianceEng,
+                residencyStore:       residencyStore,
 	}
 
 	ns.registerTools()
@@ -1264,6 +1267,24 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithDescription("Retrieve a signed document from an e-signature envelope."),
                 mcp.WithString("envelope_id", mcp.Required(), mcp.Description("E-signature envelope ID")),
         ), ns.handleSignedDocument)
+
+        // Tool: negotiate_set_data_residency
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_data_residency",
+                mcp.WithDescription("Set data residency rule for a region. Controls whether data in a specific geographic region is allowed or blocked."),
+                mcp.WithString("region", mcp.Required(), mcp.Description("Geographic region (e.g. eu, us, cn)")),
+                mcp.WithBoolean("allowed", mcp.Required(), mcp.Description("Whether data residency is allowed in this region")),
+        ), ns.handleSetDataResidency)
+
+        // Tool: negotiate_check_residency
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_residency",
+                mcp.WithDescription("Check if a vendor's data storage region is compliant with configured data residency rules."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name (e.g. Slack, GitHub)")),
+        ), ns.handleCheckResidency)
+
+        // Tool: negotiate_residency_report
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_residency_report",
+                mcp.WithDescription("Generate a data residency compliance report showing all configured rules and their status."),
+        ), ns.handleResidencyReport)
 
 }
 
@@ -6191,4 +6212,119 @@ func (ns *NegotiationServer) handleSignedDocument(ctx context.Context, req mcp.C
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
+}
+
+// --- P94: Data Residency Handlers ---
+
+func (ns *NegotiationServer) handleSetDataResidency(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        region, err := req.RequireString("region")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: region"), nil
+        }
+        allowed, err := req.RequireBool("allowed")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: allowed"), nil
+        }
+
+        ns.logger.Debug("negotiate_set_data_residency called", "region", region, "allowed", allowed)
+
+        if ns.residencyStore == nil {
+                return mcp.NewToolResultError("Data residency store is not available"), nil
+        }
+
+        rule, err := ns.residencyStore.SetRule(ctx, region, allowed)
+        if err != nil {
+                ns.logger.Warn("negotiate_set_data_residency failed", "error", err.Error())
+                return mcp.NewToolResultError("Set data residency failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "id":          rule.ID,
+                "region":      rule.Region,
+                "allowed":     rule.Allowed,
+                "updated_at":  rule.UpdatedAt,
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCheckResidency(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        vendor, err := req.RequireString("vendor")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: vendor"), nil
+        }
+
+        ns.logger.Debug("negotiate_check_residency called", "vendor", vendor)
+
+        if ns.residencyStore == nil {
+                return mcp.NewToolResultError("Data residency store is not available"), nil
+        }
+
+        // Get all rules to check each region
+        rules, err := ns.residencyStore.ListRules(ctx)
+        if err != nil {
+                ns.logger.Warn("negotiate_check_residency list failed", "error", err.Error())
+                return mcp.NewToolResultError("Check residency failed: " + err.Error()), nil
+        }
+
+        var checks []map[string]any
+        for _, rule := range rules {
+                check, err := ns.residencyStore.CheckVendor(ctx, vendor, rule.Region)
+                if err != nil {
+                        ns.logger.Warn("negotiate_check_residency check failed", "vendor", vendor, "region", rule.Region, "error", err.Error())
+                        continue
+                }
+                checks = append(checks, map[string]any{
+                        "region":     check.Region,
+                        "compliant":  check.Compliant,
+                        "rule_found": check.RuleFound,
+                })
+        }
+
+        resp := map[string]any{
+                "vendor":     vendor,
+                "checks":     checks,
+                "total":      len(checks),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleResidencyReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        ns.logger.Debug("negotiate_residency_report called")
+
+        if ns.residencyStore == nil {
+                return mcp.NewToolResultError("Data residency store is not available"), nil
+        }
+
+        rules, err := ns.residencyStore.ListRules(ctx)
+        if err != nil {
+                ns.logger.Warn("negotiate_residency_report failed", "error", err.Error())
+                return mcp.NewToolResultError("Residency report failed: " + err.Error()), nil
+        }
+
+        var allowedRegions []string
+        var blockedRegions []string
+        for _, rule := range rules {
+                if rule.Allowed {
+                        allowedRegions = append(allowedRegions, rule.Region)
+                } else {
+                        blockedRegions = append(blockedRegions, rule.Region)
+                }
+        }
+
+        resp := map[string]any{
+                "rules":            rules,
+                "allowed_regions":  allowedRegions,
+                "blocked_regions":  blockedRegions,
+                "total_rules":      len(rules),
+                "duration_ms":      time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
 }
