@@ -27,6 +27,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/compliance"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractclauses"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
@@ -178,11 +179,12 @@ type NegotiationServer struct {
 	translationStore      *translation.Store
 	translationEng        *translation.Engine
         summarizerEng *summarizer.Engine
+	clausesStore *contractclauses.Store
 	complianceEng       *compliance.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -303,6 +305,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		translationStore:     translationStore,
 		translationEng:       translationEng,
                 summarizerEng:  summarizerEng,
+                clausesStore:         clausesStore,
                 complianceEng:       complianceEng,
 	}
 
@@ -1213,6 +1216,33 @@ func (ns *NegotiationServer) registerTools() {
                         mcp.WithString("terms", mcp.Required(), mcp.Description("The negotiation terms / agreement text to check")),
                         mcp.WithString("jurisdiction", mcp.Required(), mcp.Description("Regulatory jurisdiction: gdpr, soc2, hipaa, or ccpa")),
                 ), ns.handleComplianceCheck)
+        // Tool: negotiate_list_clauses
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_clauses",
+                mcp.WithDescription("List standard contract clauses, optionally filtered by category."),
+                mcp.WithString("category", mcp.Description("Optional category filter (e.g. payment, termination, confidentiality)")),
+        ), ns.handleListClauses)
+
+        // Tool: negotiate_get_clause
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_clause",
+                mcp.WithDescription("Get a contract clause by its ID."),
+                mcp.WithInteger("clause_id", mcp.Required(), mcp.Description("Clause ID")),
+        ), ns.handleGetClause)
+
+        // Tool: negotiate_search_clauses
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_search_clauses",
+                mcp.WithDescription("Search contract clauses by keyword across title, content, and description."),
+                mcp.WithString("query", mcp.Required(), mcp.Description("Search query")),
+        ), ns.handleSearchClauses)
+
+        // Tool: negotiate_add_clause
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_add_clause",
+                mcp.WithDescription("Add a new contract clause to the library."),
+                mcp.WithString("category", mcp.Required(), mcp.Description("Clause category")),
+                mcp.WithString("title", mcp.Required(), mcp.Description("Clause title")),
+                mcp.WithString("content", mcp.Required(), mcp.Description("Clause content / legal text")),
+                mcp.WithString("description", mcp.Description("Optional description")),
+        ), ns.handleAddClause)
+
 }
 
 // ─── Tool Handlers ───
@@ -5937,6 +5967,118 @@ func (ns *NegotiationServer) handleComplianceCheck(ctx context.Context, req mcp.
 		"pass_count":     result.PassCount,
 		"flag_count":     result.FlagCount,
 		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P92: Contract Clause Handlers ───
+
+func (ns *NegotiationServer) handleListClauses(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	category := req.GetString("category", "")
+
+	ns.logger.Debug("negotiate_list_clauses called", "category", category)
+
+	clauses, err := ns.clausesStore.ListClauses(ctx, category)
+	if err != nil {
+		ns.logger.Warn("negotiate_list_clauses failed", "error", err.Error())
+		return mcp.NewToolResultError("List clauses failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"clauses":     clauses,
+		"total":       len(clauses),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleGetClause(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	clauseID, err := req.RequireInt("clause_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: clause_id"), nil
+	}
+
+	ns.logger.Debug("negotiate_get_clause called", "clause_id", clauseID)
+
+	clause, err := ns.clausesStore.GetClause(ctx, clauseID)
+	if err != nil {
+		ns.logger.Warn("negotiate_get_clause failed", "error", err.Error())
+		return mcp.NewToolResultError("Get clause failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          clause.ID,
+		"category":    clause.Category,
+		"title":       clause.Title,
+		"content":     clause.Content,
+		"description": clause.Description,
+		"created_at":  clause.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSearchClauses(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	query, err := req.RequireString("query")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: query"), nil
+	}
+
+	ns.logger.Debug("negotiate_search_clauses called", "query", query)
+
+	clauses, err := ns.clausesStore.SearchClauses(ctx, query)
+	if err != nil {
+		ns.logger.Warn("negotiate_search_clauses failed", "error", err.Error())
+		return mcp.NewToolResultError("Search clauses failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"clauses":     clauses,
+		"total":       len(clauses),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAddClause(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	category, err := req.RequireString("category")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: category"), nil
+	}
+	title, err := req.RequireString("title")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: title"), nil
+	}
+	content, err := req.RequireString("content")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: content"), nil
+	}
+	description := req.GetString("description", "")
+
+	ns.logger.Debug("negotiate_add_clause called", "category", category, "title", title)
+
+	clause, err := ns.clausesStore.AddClause(ctx, category, title, content, description)
+	if err != nil {
+		ns.logger.Warn("negotiate_add_clause failed", "error", err.Error())
+		return mcp.NewToolResultError("Add clause failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          clause.ID,
+		"category":    clause.Category,
+		"title":       clause.Title,
+		"content":     clause.Content,
+		"description": clause.Description,
+		"created_at":  clause.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
