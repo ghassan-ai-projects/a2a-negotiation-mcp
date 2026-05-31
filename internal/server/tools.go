@@ -37,6 +37,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/esignature"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
@@ -179,12 +180,14 @@ type NegotiationServer struct {
 	translationStore      *translation.Store
 	translationEng        *translation.Engine
         summarizerEng *summarizer.Engine
+	esigStore *esignature.Store
+	esigEng *esignature.Engine
 	clausesStore *contractclauses.Store
 	complianceEng       *compliance.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -1242,6 +1245,25 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithString("content", mcp.Required(), mcp.Description("Clause content / legal text")),
                 mcp.WithString("description", mcp.Description("Optional description")),
         ), ns.handleAddClause)
+
+        // Tool: negotiate_send_for_signature
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_send_for_signature",
+                mcp.WithDescription("Send a contract for e-signature to a signer."),
+                mcp.WithString("contract_id", mcp.Required(), mcp.Description("Contract ID to send for signing")),
+                mcp.WithString("signer_email", mcp.Required(), mcp.Description("Email address of the signer")),
+        ), ns.handleSendForSignature)
+
+        // Tool: negotiate_signature_status
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_signature_status",
+                mcp.WithDescription("Check the current status of an e-signature envelope."),
+                mcp.WithString("envelope_id", mcp.Required(), mcp.Description("E-signature envelope ID")),
+        ), ns.handleSignatureStatus)
+
+        // Tool: negotiate_signed_document
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_signed_document",
+                mcp.WithDescription("Retrieve a signed document from an e-signature envelope."),
+                mcp.WithString("envelope_id", mcp.Required(), mcp.Description("E-signature envelope ID")),
+        ), ns.handleSignedDocument)
 
 }
 
@@ -6078,6 +6100,94 @@ func (ns *NegotiationServer) handleAddClause(ctx context.Context, req mcp.CallTo
 		"content":     clause.Content,
 		"description": clause.Description,
 		"created_at":  clause.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P93: E-Signature Handlers ───
+
+func (ns *NegotiationServer) handleSendForSignature(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	contractID, err := req.RequireString("contract_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: contract_id"), nil
+	}
+	signerEmail, err := req.RequireString("signer_email")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: signer_email"), nil
+	}
+
+	ns.logger.Debug("negotiate_send_for_signature called", "contract_id", contractID, "signer_email", signerEmail)
+
+	env, err := ns.esigStore.CreateEnvelope(ctx, contractID, signerEmail)
+	if err != nil {
+		ns.logger.Warn("negotiate_send_for_signature failed", "error", err.Error())
+		return mcp.NewToolResultError("Send for signature failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          env.ID,
+		"contract_id": env.ContractID,
+		"signer_email": env.SignerEmail,
+		"status":      env.Status,
+		"envelope_id": env.EnvelopeID,
+		"created_at":  env.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSignatureStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	envelopeID, err := req.RequireString("envelope_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: envelope_id"), nil
+	}
+
+	ns.logger.Debug("negotiate_signature_status called", "envelope_id", envelopeID)
+
+	env, err := ns.esigStore.GetEnvelope(ctx, envelopeID)
+	if err != nil {
+		ns.logger.Warn("negotiate_signature_status failed", "error", err.Error())
+		return mcp.NewToolResultError("Get signature status failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"envelope_id": env.EnvelopeID,
+		"contract_id": env.ContractID,
+		"status":     env.Status,
+		"signer_email": env.SignerEmail,
+		"created_at": env.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSignedDocument(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	envelopeID, err := req.RequireString("envelope_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: envelope_id"), nil
+	}
+
+	ns.logger.Debug("negotiate_signed_document called", "envelope_id", envelopeID)
+
+	env, err := ns.esigStore.GetSignedDocument(ctx, envelopeID)
+	if err != nil {
+		ns.logger.Warn("negotiate_signed_document failed", "error", err.Error())
+		return mcp.NewToolResultError("Get signed document failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"envelope_id": env.EnvelopeID,
+		"contract_id": env.ContractID,
+		"status":     env.Status,
+		"signer_email": env.SignerEmail,
+		"created_at": env.CreatedAt,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)

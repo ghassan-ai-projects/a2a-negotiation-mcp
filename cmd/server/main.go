@@ -37,6 +37,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/esignature"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
@@ -514,8 +515,14 @@ func main() {
 
 	complianceEng := compliance.NewEngine()
 
+	esigStore, err := esignature.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize e-signature store", "error", err.Error())
+		os.Exit(1)
+	}
+	esigEng := esignature.NewEngine()
 
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, summarizerEng, sentimentEng, translationStore, translationEng, complianceEng, clausesStore, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, summarizerEng, sentimentEng, translationStore, translationEng, complianceEng, clausesStore, esigStore, esigEng, logger)
 
 	// Initialize gamification store and engine (for streaks, leaderboard, badges)
 	gamifStore, err := gamification.NewStore(pricingStore.DB())
