@@ -73,6 +73,7 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
@@ -147,6 +148,7 @@ type NegotiationServer struct {
 	healthCheckEng  *healthcheck.Engine
 	apiKeyRotateEng *apikeyrotation.Engine
 	ipWhitelistEng  *ipwhitelist.Engine
+	dataRetentionEng *dataretention.Engine
 	autocompleteEng *autocomplete.Engine
 	metricsEng      *metrics.Engine
 	shutdownEng     *shutdown.Engine
@@ -156,7 +158,7 @@ type NegotiationServer struct {
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -265,6 +267,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		contribguideEng: contribguideEng,
 		apiKeyRotateEng: apiKeyRotateEng,
 		ipWhitelistEng:  ipWhitelistEng,
+		dataRetentionEng: dataRetentionEng,
 	}
 
 	ns.registerTools()
@@ -1060,6 +1063,25 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_whitelist",
 		mcp.WithDescription("List all IP addresses currently on the whitelist."),
 	), ns.handleListWhitelist)
+
+	// Tool: negotiate_set_retention
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_retention",
+		mcp.WithDescription("Set a data retention policy for a given data type. Supported types: sessions, outcomes, alerts, audit_log, usage_stats. Actions: delete, archive."),
+		mcp.WithString("data_type", mcp.Required(), mcp.Description("Data type to set retention for (sessions, outcomes, alerts, audit_log, usage_stats)")),
+		mcp.WithInteger("retention_days", mcp.Required(), mcp.Description("Number of days to retain data")),
+		mcp.WithString("action", mcp.Required(), mcp.Description("Action after retention period (delete, archive)")),
+	), ns.handleSetRetention)
+
+	// Tool: negotiate_get_retention
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_retention",
+		mcp.WithDescription("List all data retention policies."),
+	), ns.handleGetRetention)
+
+	// Tool: negotiate_purge_old_data
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_purge_old_data",
+		mcp.WithDescription("Purge old data according to retention policies. Defaults to dry-run (simulation) unless dry_run=false."),
+		mcp.WithBoolean("dry_run", mcp.Description("If true (default), simulate the purge without actually deleting. Set to false to execute.")),
+	), ns.handlePurgeOldData)
 }
 
 // ─── Tool Handlers ───
@@ -5073,6 +5095,75 @@ func (ns *NegotiationServer) handleListWhitelist(ctx context.Context, req mcp.Ca
 	resp := map[string]any{
 		"entries":     entries,
 		"total":       len(entries),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSetRetention(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	dataType, _ := req.RequireString("data_type")
+	retentionDays := req.GetInt("retention_days", 0)
+	if retentionDays < 1 {
+		return mcp.NewToolResultError("Missing or invalid required parameter: retention_days"), nil
+	}
+	action, _ := req.RequireString("action")
+
+	ns.logger.Info("negotiate_set_retention called", "data_type", dataType, "retention_days", retentionDays, "action", action)
+
+	if ns.dataRetentionEng == nil {
+		return mcp.NewToolResultError("Data retention engine is not available"), nil
+	}
+
+	if err := ns.dataRetentionEng.SetPolicy(dataType, int(retentionDays), action); err != nil {
+		ns.logger.Warn("negotiate_set_retention failed", "error", err.Error())
+		return mcp.NewToolResultError("Set retention failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"data_type":      dataType,
+		"retention_days": retentionDays,
+		"action":         action,
+		"status":         "set",
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleGetRetention(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ns.logger.Info("negotiate_get_retention called")
+
+	if ns.dataRetentionEng == nil {
+		return mcp.NewToolResultError("Data retention engine is not available"), nil
+	}
+
+	policies := ns.dataRetentionEng.GetPolicies()
+
+	resp := map[string]any{
+		"policies":    policies,
+		"total":       len(policies),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handlePurgeOldData(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	dryRun := req.GetBool("dry_run", true)
+
+	ns.logger.Info("negotiate_purge_old_data called", "dry_run", dryRun)
+
+	if ns.dataRetentionEng == nil {
+		return mcp.NewToolResultError("Data retention engine is not available"), nil
+	}
+
+	results := ns.dataRetentionEng.PurgeOldData(dryRun)
+
+	resp := map[string]any{
+		"results":     results,
+		"total_types": len(results),
+		"dry_run":     dryRun,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
