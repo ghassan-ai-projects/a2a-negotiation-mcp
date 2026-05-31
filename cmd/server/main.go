@@ -36,6 +36,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricechart"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingindex"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -249,7 +252,13 @@ func main() {
         }
 
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, logger)
+
+        // Initialize reports, pricing index, and price chart engines
+        reportsEng := reports.NewEngine(historyStore)
+        pricingIndexEng := pricingindex.NewEngine(pricingStore)
+        priceChartEng := pricechart.NewEngine(trendsStore, historyStore)
+
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())

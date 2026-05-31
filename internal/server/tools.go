@@ -38,6 +38,9 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reminders"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricechart"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingindex"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -76,10 +79,13 @@ type NegotiationServer struct {
         priceAlertEng *pricealerts.Engine
         reminderEng    *reminders.Engine
         budgetAlertEng *budgetalerts.Engine
+        reportsEng     *reports.Engine
+        pricingIndexEng *pricingindex.Engine
+        priceChartEng   *pricechart.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -158,6 +164,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 priceAlertEng: priceAlertEng,
                 reminderEng:    reminderEng,
                 budgetAlertEng: budgetAlertEng,
+                reportsEng:     reportsEng,
+                pricingIndexEng: pricingIndexEng,
+                priceChartEng:   priceChartEng,
                 effectivenessEng: effectivenessEng,
 	}
 
@@ -610,6 +619,29 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
                 mcp.WithInteger("limit", mcp.Description("Max records (default: 10)")),
         ), ns.handleBudgetAlertHistory)
+        // Tool: negotiate_build_report
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_build_report",
+                mcp.WithDescription("Build a custom report from analytics data sources. Supports sections: savings, vendor_breakdown, win_loss, benchmarks, budget, trends."),
+                mcp.WithArray("sections", mcp.Required(), mcp.WithStringItems(), mcp.Description("Report sections to include: savings, vendor_breakdown, win_loss, benchmarks, budget, trends")),
+                mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y, all (default: all)")),
+                mcp.WithString("vendor", mcp.Description("Filter by vendor name (optional)")),
+        ), ns.handleBuildReport)
+
+        // Tool: negotiate_pricing_index
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_pricing_index",
+                mcp.WithDescription("Get competitive pricing index for a category or vendor. Returns average prices, ranges, and vendor breakdown."),
+                mcp.WithString("category", mcp.Description("Category filter (e.g., ai, Communication) (optional)")),
+                mcp.WithString("vendor", mcp.Description("Vendor filter (optional)")),
+        ), ns.handlePricingIndex)
+
+        // Tool: negotiate_price_chart
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_price_chart",
+                mcp.WithDescription("Get price history chart data for a vendor. Returns monthly labels, datasets (list_price, negotiated), and summary stats."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+                mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y, 2y (default: 1y)")),
+        ), ns.handlePriceChart)
+
 
         
 
@@ -3022,6 +3054,102 @@ func (ns *NegotiationServer) handleBudgetAlertHistory(ctx context.Context, req m
                 "vendor":     vendor,
                 "history":    history,
                 "count":      len(history),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+
+// --- Report Builder Handler ---
+
+func (ns *NegotiationServer) handleBuildReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        rawSections, _ := req.GetArguments()["sections"]
+        sectionsRaw, _ := rawSections.([]any)
+        sections := make([]string, len(sectionsRaw))
+        for i, v := range sectionsRaw {
+                sections[i], _ = v.(string)
+        }
+        if len(sections) == 0 {
+                return mcp.NewToolResultError("sections is required"), nil
+        }
+
+        period := req.GetString("period", "all")
+        vendor := req.GetString("vendor", "")
+
+        ns.logger.Debug("build_report called", "sections", sections, "period", period, "vendor", vendor)
+
+        reqData := reports.ReportRequest{
+                Sections: sections,
+                Period:   period,
+                Vendor:   vendor,
+        }
+        result, err := ns.reportsEng.Build(ctx, reqData)
+        if err != nil {
+                ns.logger.Warn("build_report failed", "error", err.Error())
+                return mcp.NewToolResultError("Build report failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "sections":      result.Sections,
+                "generated_at":  result.GeneratedAt,
+                "section_count": result.SectionCount,
+                "duration_ms":   time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+// --- Pricing Index Handler ---
+
+func (ns *NegotiationServer) handlePricingIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        category := req.GetString("category", "")
+        vendor := req.GetString("vendor", "")
+
+        ns.logger.Debug("pricing_index called", "category", category, "vendor", vendor)
+
+        result, err := ns.pricingIndexEng.Index(ctx, category, vendor)
+        if err != nil {
+                ns.logger.Warn("pricing_index failed", "error", err.Error())
+                return mcp.NewToolResultError("Pricing index failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "category":         result.Category,
+                "period":           result.Period,
+                "avg_price":        result.AvgPrice,
+                "price_range":      result.PriceRange,
+                "vendors":          result.Vendors,
+                "mom_change_pct":   result.MoMChangePct,
+                "volatility_index": result.VolatilityIdx,
+                "duration_ms":      time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+// --- Price Chart Handler ---
+
+func (ns *NegotiationServer) handlePriceChart(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        vendor, _ := req.RequireString("vendor")
+        sku := req.GetString("sku", "")
+        period := req.GetString("period", "1y")
+
+        ns.logger.Debug("price_chart called", "vendor", vendor, "sku", sku, "period", period)
+
+        result, err := ns.priceChartEng.Chart(ctx, vendor, sku, period)
+        if err != nil {
+                ns.logger.Warn("price_chart failed", "error", err.Error())
+                return mcp.NewToolResultError("Price chart failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "labels":      result.Labels,
+                "datasets":    result.Datasets,
+                "summary":     result.Summary,
                 "duration_ms": time.Since(start).Milliseconds(),
         }
         return ns.jsonResult(resp)
