@@ -79,6 +79,7 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/training"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -95,6 +96,7 @@ type NegotiationServer struct {
 	sellEng        *sell.Engine
 	calendarEng    *calendar.Engine
 	playbookEng    *playbook.Engine
+        trainingEng    *training.Engine
 	logger         *slog.Logger
 	learningEng    *learning.Engine
 	healthEng      *health.Engine
@@ -160,7 +162,7 @@ type NegotiationServer struct {
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -271,6 +273,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		ipWhitelistEng:  ipWhitelistEng,
 		dataRetentionEng: dataRetentionEng,
 		playbookEng:      playbookEng,
+                trainingEng:      trainingEng,
 	}
 
 	ns.registerTools()
@@ -1085,6 +1088,15 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Purge old data according to retention policies. Defaults to dry-run (simulation) unless dry_run=false."),
 		mcp.WithBoolean("dry_run", mcp.Description("If true (default), simulate the purge without actually deleting. Set to false to execute.")),
 	), ns.handlePurgeOldData)
+
+	// Tool: negotiate_simulate
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_simulate",
+		mcp.WithDescription("Run a negotiation training simulation with configurable strategy and parameters."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("strategy", mcp.Required(), mcp.Description("Negotiation strategy: competitive, collaborative, aggressive, concessionary, or principled")),
+		mcp.WithNumber("budget", mcp.Required(), mcp.Description("Budget amount")),
+		mcp.WithInteger("rounds", mcp.Description("Number of simulation rounds (1-10, default 3)")),
+	), ns.handleSimulate)
 }
 
 // ─── Tool Handlers ───
@@ -5168,6 +5180,45 @@ func (ns *NegotiationServer) handlePurgeOldData(ctx context.Context, req mcp.Cal
 		"total_types": len(results),
 		"dry_run":     dryRun,
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+func (ns *NegotiationServer) handleSimulate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, err := req.RequireString("vendor")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: vendor"), nil
+	}
+	strategy, err := req.RequireString("strategy")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: strategy"), nil
+	}
+	budget, err := req.RequireFloat("budget")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: budget"), nil
+	}
+	rounds := req.GetInt("rounds", 3)
+
+	ns.logger.Debug("negotiate_simulate called", "vendor", vendor, "strategy", strategy, "budget", budget, "rounds", rounds)
+
+	result, err := ns.trainingEng.Simulate(vendor, strategy, budget, rounds)
+	if err != nil {
+		ns.logger.Warn("negotiate_simulate failed", "error", err.Error())
+		return mcp.NewToolResultError("Simulation failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":              result.ID,
+		"vendor":          result.Vendor,
+		"strategy":        result.Strategy,
+		"budget":          result.Budget,
+		"total_rounds":    result.TotalRounds,
+		"rounds":          result.Rounds,
+		"final_outcome":   result.FinalOutcome,
+		"total_discount_pct": result.TotalDiscount,
+		"lessons":         result.Lessons,
+		"duration_ms":     time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
