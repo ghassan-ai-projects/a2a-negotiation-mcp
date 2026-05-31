@@ -96,6 +96,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorcomparison"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workflow"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/winloss"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dashboard"
@@ -203,10 +204,11 @@ type NegotiationServer struct {
 	sandboxEng            *sandbox.Engine
 	triggerStore        *autotrigger.Store
 	schedulerStore      *scheduler.Store
+	workflowStore        *workflow.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -338,6 +340,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 sandboxStore:          sandboxStore,
                 sandboxEng:            sandboxEng,
 			schedulerStore:     schedulerStore,
+			workflowStore: workflowStore,
 	}
 
 	ns.registerTools()
@@ -1414,6 +1417,32 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithDescription("View results of a scheduled negotiation run."),
                 mcp.WithInteger("schedule_id", mcp.Required(), mcp.Description("Schedule ID to view results for")),
         ), ns.handleScheduleResults)
+
+	// Tool: negotiate_create_workflow
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_create_workflow",
+		mcp.WithDescription("Create a new automation workflow."),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Workflow name")),
+		mcp.WithString("steps_json", mcp.Required(), mcp.Description("JSON array of workflow steps")),
+	), ns.handleCreateWorkflow)
+
+	// Tool: negotiate_list_workflows
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_workflows",
+		mcp.WithDescription("List all automation workflows."),
+	), ns.handleListWorkflows)
+
+	// Tool: negotiate_run_workflow
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_run_workflow",
+		mcp.WithDescription("Execute a workflow and log the result."),
+		mcp.WithInteger("workflow_id", mcp.Required(), mcp.Description("Workflow ID to run")),
+		mcp.WithString("params", mcp.Description("Optional JSON params to pass to the workflow")),
+	), ns.handleRunWorkflow)
+
+	// Tool: negotiate_workflow_log
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_workflow_log",
+		mcp.WithDescription("View execution log for a workflow."),
+		mcp.WithInteger("workflow_id", mcp.Required(), mcp.Description("Workflow ID")),
+	), ns.handleWorkflowLog)
+
 }
 
 // ─── Tool Handlers ───
@@ -7172,6 +7201,105 @@ func (ns *NegotiationServer) handleTriggerLog(ctx context.Context, req mcp.CallT
 	resp := map[string]any{
 		"entries":     entries,
 		"count":       len(entries),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+// ─── P103: Workflow Builder Handlers ───
+
+func (ns *NegotiationServer) handleCreateWorkflow(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	name, err := req.RequireString("name")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: name"), nil
+	}
+	stepsJSON, err := req.RequireString("steps_json")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: steps_json"), nil
+	}
+
+	ns.logger.Debug("negotiate_create_workflow called", "name", name)
+
+	workflow, err := ns.workflowStore.CreateWorkflow(ctx, name, stepsJSON)
+	if err != nil {
+		ns.logger.Warn("negotiate_create_workflow failed", "error", err.Error())
+		return mcp.NewToolResultError("Create workflow failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          workflow.ID,
+		"name":        workflow.Name,
+		"steps_json":  workflow.StepsJSON,
+		"created_at":  workflow.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListWorkflows(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("negotiate_list_workflows called")
+
+	workflows, err := ns.workflowStore.ListWorkflows(ctx)
+	if err != nil {
+		ns.logger.Warn("negotiate_list_workflows failed", "error", err.Error())
+		return mcp.NewToolResultError("List workflows failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"workflows":   workflows,
+		"total":       len(workflows),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRunWorkflow(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	workflowID, err := req.RequireInt("workflow_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: workflow_id"), nil
+	}
+	params := req.GetString("params", "{}")
+
+	ns.logger.Debug("negotiate_run_workflow called", "workflow_id", workflowID, "params", params)
+
+	result, err := ns.workflowStore.RunWorkflow(ctx, workflowID, params)
+	if err != nil {
+		ns.logger.Warn("negotiate_run_workflow failed", "error", err.Error())
+		return mcp.NewToolResultError("Run workflow failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"workflow_id": workflowID,
+		"result":      result,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleWorkflowLog(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	workflowID, err := req.RequireInt("workflow_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: workflow_id"), nil
+	}
+
+	ns.logger.Debug("negotiate_workflow_log called", "workflow_id", workflowID)
+
+	logs, err := ns.workflowStore.GetWorkflowLog(ctx, workflowID)
+	if err != nil {
+		ns.logger.Warn("negotiate_workflow_log failed", "error", err.Error())
+		return mcp.NewToolResultError("Workflow log failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"entries":     logs,
+		"count":       len(logs),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)

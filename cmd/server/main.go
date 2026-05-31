@@ -56,6 +56,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/industryreports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooklog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workflow"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorknowledge"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/limitedoffer"
@@ -238,7 +239,7 @@ func main() {
 	}
 
 	// Initialize trends store (shares the same DB)
-	trendsStore, err := trends.NewStore(pricingStore.DB())
+		rendsStore, err := trends.NewStore(pricingStore.DB())
 	if err != nil {
 		logger.Error("failed to initialize trends store", "error", err.Error())
 		os.Exit(1)
@@ -408,7 +409,7 @@ func main() {
 	savingsRealizationEng := savingsrealization.NewEngine(savingsrealizationStore, logger)
 
 	// Initialize TCO engine (P60)
-	tcoEng := tco.NewEngine(pricingStore)
+		coEng := tco.NewEngine(pricingStore)
 
 	// Initialize data import engine (P61)
 	dataImportEng := dataimport.NewEngine(pricingStore, historyStore)
@@ -450,12 +451,12 @@ func main() {
 	rateLimitDashEng := ratelimitdashboard.NewEngine(rateLimitDashStore, logger)
 
 	// Initialize tool stats store (P70)
-	toolStatsStore, err := toolstats.NewStore(pricingStore.DB())
+		oolStatsStore, err := toolstats.NewStore(pricingStore.DB())
 	if err != nil {
 		logger.Error("failed to initialize tool stats store", "error", err.Error())
 		os.Exit(1)
 	}
-	toolStatsEng := toolstats.NewEngine(toolStatsStore)
+		oolStatsEng := toolstats.NewEngine(toolStatsStore)
 
 	// Initialize API docs engine (P69)
 	apiDocsEng := apidocs.NewEngine(nil) // set after negServer creation since mcpServer isn't available yet
@@ -497,7 +498,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	toolBillingStore, err := toolbilling.NewStore(pricingStore.DB())
+		oolBillingStore, err := toolbilling.NewStore(pricingStore.DB())
 
 	sandboxStore, err := sandbox.NewStore(pricingStore.DB())
 	if err != nil {
@@ -513,13 +514,19 @@ func main() {
 	// Initialize scheduler store (shares the same DB)
 	schedulerStore, err := scheduler.NewStore(pricingStore.DB())
 
-	triggerStore, err := autotrigger.NewStore(pricingStore.DB())
+		riggerStore, err := autotrigger.NewStore(pricingStore.DB())
 	if err != nil {
 		logger.Error("failed to initialize autotrigger store", "error", err.Error())
 		os.Exit(1)
 	}
 	if err != nil {
 		logger.Error("failed to initialize scheduler store", "error", err.Error())
+		os.Exit(1)
+	}
+
+	workflowStore, err := workflow.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize workflow store", "error", err.Error())
 		os.Exit(1)
 	}
 
@@ -545,13 +552,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	trainingEng := training.NewEngine()
+		rainingEng := training.NewEngine()
         summarizerEng := summarizer.NewEngine()
 	modelABTestEng := modelabtesting.NewEngine()
 	sentimentEng := sentiment.NewEngine()
 
-	translationStore, _ := translation.NewStore(pricingStore.DB())
-	translationEng := translation.NewEngine()
+		ranslationStore, _ := translation.NewStore(pricingStore.DB())
+		ranslationEng := translation.NewEngine()
 
 	complianceEng := compliance.NewEngine()
 
@@ -582,7 +589,7 @@ func main() {
 	// Initialize monitoring dashboard engine (no store needed, stateless)
 	monitorDashEng := monitordash.NewEngine()
 
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, summarizerEng, sentimentEng, translationStore, translationEng, complianceEng, clausesStore, esigStore, esigEng, residencyStore, dashboardStore, chartExportEng, monitorDashEng, webhookLogStore, toolBillingStore, sandboxStore, sandboxEng, schedulerStore, triggerStore, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, summarizerEng, sentimentEng, translationStore, translationEng, complianceEng, clausesStore, esigStore, esigEng, residencyStore, dashboardStore, chartExportEng, monitorDashEng, webhookLogStore, toolBillingStore, sandboxStore, sandboxEng, schedulerStore, triggerStore, workflowStore, logger)
 
 	// Initialize gamification store and engine (for streaks, leaderboard, badges)
 	gamifStore, err := gamification.NewStore(pricingStore.DB())
