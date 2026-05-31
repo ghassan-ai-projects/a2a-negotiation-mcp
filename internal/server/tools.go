@@ -19,6 +19,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autotrigger"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchcsv"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/benchmark"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
@@ -205,10 +206,11 @@ type NegotiationServer struct {
 	triggerStore        *autotrigger.Store
 	schedulerStore      *scheduler.Store
 	workflowStore        *workflow.Store
+	batchCsvEng          *batchcsv.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, batchCsvEng *batchcsv.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -341,6 +343,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 sandboxEng:            sandboxEng,
 			schedulerStore:     schedulerStore,
 			workflowStore: workflowStore,
+		batchCsvEng: batchCsvEng,
 	}
 
 	ns.registerTools()
@@ -1442,6 +1445,12 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("View execution log for a workflow."),
 		mcp.WithInteger("workflow_id", mcp.Required(), mcp.Description("Workflow ID")),
 	), ns.handleWorkflowLog)
+
+	// Tool: negotiate_batch_upload
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_batch_upload",
+		mcp.WithDescription("Upload a CSV file to create multiple negotiations at once. The CSV must have a header row: vendor,strategy,budget,target_price,notes."),
+		mcp.WithString("csv_content", mcp.Required(), mcp.Description("CSV content with header row and data rows")),
+	), ns.handleBatchUpload)
 
 }
 
@@ -7301,6 +7310,34 @@ func (ns *NegotiationServer) handleWorkflowLog(ctx context.Context, req mcp.Call
 		"entries":     logs,
 		"count":       len(logs),
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+
+// ─── Batch CSV Upload Handler ───
+
+func (ns *NegotiationServer) handleBatchUpload(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	csvContent, err := req.RequireString("csv_content")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: csv_content"), nil
+	}
+
+	ns.logger.Debug("negotiate_batch_upload called")
+
+	result, err := ns.batchCsvEng.ProcessCSV(ctx, csvContent)
+	if err != nil {
+		ns.logger.Warn("negotiate_batch_upload failed", "error", err.Error())
+		return mcp.NewToolResultError("Batch upload failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"created_count": result.CreatedCount,
+		"row_count":     result.RowCount,
+		"errors":        result.Errors,
+		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
