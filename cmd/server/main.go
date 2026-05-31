@@ -51,6 +51,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -340,7 +343,20 @@ func main() {
 	}
 	approvalsEng := approvals.NewEngine(approvalsStore)
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, logger)
+	// Initialize budget management store and engine (P57)
+	budgetmgmtStore, err := budgetmgmt.NewStore(pricingStore.DB())
+	if err != nil { logger.Error("budgetmgmt store", "error", err); os.Exit(1) }
+	budgetMgmtEng := budgetmgmt.NewEngine(budgetmgmtStore, pricingStore.DB(), logger)
+	// Initialize spending caps store and engine (P58)
+	spendingcapsStore, err := spendingcaps.NewStore(pricingStore.DB())
+	if err != nil { logger.Error("spendingcaps store", "error", err); os.Exit(1) }
+	spendingCapsEng := spendingcaps.NewEngine(spendingcapsStore, pricingStore.DB(), logger)
+	// Initialize savings realization store and engine (P59)
+	savingsrealizationStore, err := savingsrealization.NewStore(pricingStore.DB())
+	if err != nil { logger.Error("savingsrealization store", "error", err); os.Exit(1) }
+	savingsRealizationEng := savingsrealization.NewEngine(savingsrealizationStore, logger)
+
+negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())

@@ -53,6 +53,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -106,10 +109,13 @@ type NegotiationServer struct {
 	contractTemplatesEng *contracttemplates.Engine
 	contractRiskEng     *contractrisk.Engine
 	scorecardsEng       *scorecards.Engine
+	budgetMgmtEng        *budgetmgmt.Engine
+	spendingCapsEng        *spendingcaps.Engine
+	savingsRealizationEng *savingsrealization.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -198,6 +204,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		sharedStrategiesEng: sharedStrategiesEng,
 		notesEng:              notesEng,
 		approvalsEng:           approvalsEng,
+		budgetMgmtEng:        budgetMgmtEng,
+		spendingCapsEng:        spendingCapsEng,
+		savingsRealizationEng: savingsRealizationEng,
 	}
 
 	ns.registerTools()
@@ -598,6 +607,56 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithDescription("Delete a budget for a vendor."),
                 mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
         ), ns.handleDeleteBudget)
+
+        // Tool 5m: negotiate_set_monthly_budget
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_monthly_budget",
+                mcp.WithDescription("Set the monthly budget allocation for a vendor."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("month", mcp.Required(), mcp.Description("Month (YYYY-MM)")),
+                mcp.WithNumber("budget_amount", mcp.Required(), mcp.Description("Budget amount")),
+        ), ns.handleSetMonthlyBudget)
+
+        // Tool 5n: negotiate_budget_forecast
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_forecast",
+                mcp.WithDescription("Get budget forecast for a vendor (YTD vs projected annual)."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+        ), ns.handleBudgetForecast)
+
+        // Tool 5o: negotiate_set_spending_cap
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_spending_cap",
+                mcp.WithDescription("Set soft and hard spending caps for a vendor."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithNumber("soft_cap", mcp.Required(), mcp.Description("Soft cap amount")),
+                mcp.WithNumber("hard_cap", mcp.Description("Hard cap amount (optional)")),
+                mcp.WithString("period", mcp.Description("Period: monthly, quarterly, yearly (default: monthly)")),
+        ), ns.handleSetSpendingCap)
+
+        // Tool 5p: negotiate_check_spending_caps
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_spending_caps",
+                mcp.WithDescription("Check all spending caps against current spend."),
+        ), ns.handleCheckSpendingCaps)
+
+        // Tool 5q: negotiate_delete_spending_cap
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_delete_spending_cap",
+                mcp.WithDescription("Delete a spending cap for a vendor."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+        ), ns.handleDeleteSpendingCap)
+
+        // Tool 5r: negotiate_record_realization
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_record_realization",
+                mcp.WithDescription("Record savings realization for a deal."),
+                mcp.WithString("session_id", mcp.Required(), mcp.Description("Negotiation session ID")),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithNumber("projected_amount", mcp.Required(), mcp.Description("Projected savings amount")),
+                mcp.WithNumber("actual_amount", mcp.Required(), mcp.Description("Actual savings amount")),
+                mcp.WithString("period", mcp.Description("Period (default: monthly)")),
+        ), ns.handleRecordRealization)
+
+        // Tool 5s: negotiate_realization_report
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_realization_report",
+                mcp.WithDescription("Get aggregated savings realization report."),
+                mcp.WithString("period", mcp.Description("Period filter (default: 90d)")),
+        ), ns.handleRealizationReport)
 
         // Tool 5l: negotiate_vendor_spend
         ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_spend",
@@ -2981,6 +3040,180 @@ func (ns *NegotiationServer) handleDeleteBudget(ctx context.Context, req mcp.Cal
 		"vendor":      vendor,
 		"status":      "deleted",
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Budget Management Handlers ───
+
+func (ns *NegotiationServer) handleSetMonthlyBudget(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	month, _ := req.RequireString("month")
+	budgetAmount := req.GetFloat("budget_amount", 0)
+
+	ns.logger.Debug("set_monthly_budget called", "vendor", vendor, "month", month, "amount", budgetAmount)
+
+	if err := ns.budgetMgmtEng.SetBudget(ctx, vendor, month, budgetAmount); err != nil {
+		ns.logger.Warn("set_monthly_budget failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Set monthly budget failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":      vendor,
+		"month":       month,
+		"amount":      budgetAmount,
+		"status":      "set",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleBudgetForecast(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+
+	ns.logger.Debug("budget_forecast called", "vendor", vendor)
+
+	forecast, err := ns.budgetMgmtEng.GetForecast(ctx, vendor)
+	if err != nil {
+		ns.logger.Warn("budget_forecast failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Budget forecast failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":            forecast.Vendor,
+		"ytd_budget":        forecast.YTDBudget,
+		"ytd_spent":         forecast.YTDSpent,
+		"projected_annual":  forecast.ProjectedAnnual,
+		"remaining_months":  forecast.RemainingMonths,
+		"status":            forecast.Status,
+		"duration_ms":       time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Spending Caps Handlers ───
+
+func (ns *NegotiationServer) handleSetSpendingCap(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	softCap := req.GetFloat("soft_cap", 0)
+	hardCap := req.GetFloat("hard_cap", 0)
+	period := req.GetString("period", "monthly")
+
+	ns.logger.Debug("set_spending_cap called", "vendor", vendor, "soft_cap", softCap, "hard_cap", hardCap, "period", period)
+
+	if err := ns.spendingCapsEng.SetCap(ctx, vendor, softCap, hardCap, period); err != nil {
+		ns.logger.Warn("set_spending_cap failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Set spending cap failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":      vendor,
+		"soft_cap":    softCap,
+		"hard_cap":    hardCap,
+		"period":      period,
+		"status":      "set",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCheckSpendingCaps(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("check_spending_caps called")
+
+	results, err := ns.spendingCapsEng.CheckCaps(ctx)
+	if err != nil {
+		ns.logger.Warn("check_spending_caps failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Check spending caps failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"results":     results,
+		"count":       len(results),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleDeleteSpendingCap(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+
+	ns.logger.Debug("delete_spending_cap called", "vendor", vendor)
+
+	if err := ns.spendingCapsEng.Store().DeleteCap(ctx, vendor); err != nil {
+		ns.logger.Warn("delete_spending_cap failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Delete spending cap failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":      vendor,
+		"status":      "deleted",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Savings Realization Handlers ───
+
+func (ns *NegotiationServer) handleRecordRealization(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	sessionID, _ := req.RequireString("session_id")
+	vendor, _ := req.RequireString("vendor")
+	projectedAmount := req.GetFloat("projected_amount", 0)
+	actualAmount := req.GetFloat("actual_amount", 0)
+	period := req.GetString("period", "monthly")
+
+	ns.logger.Debug("record_realization called", "vendor", vendor, "session_id", sessionID)
+
+	result, err := ns.savingsRealizationEng.Record(ctx, sessionID, vendor, projectedAmount, actualAmount, period)
+	if err != nil {
+		ns.logger.Warn("record_realization failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Record realization failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"id":               result.ID,
+		"session_id":       result.SessionID,
+		"vendor":           result.Vendor,
+		"projected_amount": result.ProjectedAmount,
+		"actual_amount":    result.ActualAmount,
+		"period":           result.Period,
+		"status":           "recorded",
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRealizationReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	period := req.GetString("period", "90d")
+
+	ns.logger.Debug("realization_report called", "period", period)
+
+	report, err := ns.savingsRealizationEng.GetReport(ctx, period)
+	if err != nil {
+		ns.logger.Warn("realization_report failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Realization report failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"total_projected":   report.TotalProjected,
+		"total_realized":    report.TotalRealized,
+		"realization_rate":  report.RealizationRate,
+		"by_vendor":         report.ByVendor,
+		"top_shortfalls":    report.TopShortfalls,
+		"duration_ms":       time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
