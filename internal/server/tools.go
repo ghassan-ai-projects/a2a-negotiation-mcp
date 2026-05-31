@@ -52,6 +52,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/industryreports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/communitybench"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pushnotif"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/qrshare"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorreviews"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooklog"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorknowledge"
@@ -214,12 +215,13 @@ type NegotiationServer struct {
 	batchCsvEng          *batchcsv.Engine
         strategyMarketStore *strategymarket.Store
 	vendorReviewsStore  *vendorreviews.Store
+	qrShareEng          *qrshare.Engine
 	pushStore           *pushnotif.Store
 	pushEng             *pushnotif.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, strategyMarketStore *strategymarket.Store, batchCsvEng *batchcsv.Engine, vendorReviewsStore *vendorreviews.Store, communityBenchStore *communitybench.Store, pushStore *pushnotif.Store, pushEng *pushnotif.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, strategyMarketStore *strategymarket.Store, batchCsvEng *batchcsv.Engine, vendorReviewsStore *vendorreviews.Store, communityBenchStore *communitybench.Store, qrShareEng *qrshare.Engine, pushStore *pushnotif.Store, pushEng *pushnotif.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -356,6 +358,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		vendorReviewsStore:  vendorReviewsStore,
 			communityBenchStore:  communityBenchStore,
 		batchCsvEng: batchCsvEng,
+		qrShareEng: qrShareEng,
 	}
 
 	ns.registerTools()
@@ -1538,6 +1541,12 @@ func (ns *NegotiationServer) registerTools() {
 			mcp.WithDescription("List all registered push notification devices"),
 		), ns.handleListDevices)
 
+
+		// Tool: negotiate_qr_session
+		ns.mcpServer.AddTool(mcp.NewTool("negotiate_qr_session",
+			mcp.WithDescription("Generate a QR code for quick session sharing."),
+			mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID to encode in QR code")),
+		), ns.handleQRSession)
 }
 
 // ─── Tool Handlers ───
@@ -7720,6 +7729,36 @@ func (ns *NegotiationServer) handleBatchUpload(ctx context.Context, req mcp.Call
 		"row_count":     result.RowCount,
 		"errors":        result.Errors,
 		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleQRSession(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	sessionID, err := req.RequireString("session_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: session_id"), nil
+	}
+
+	ns.logger.Debug("negotiate_qr_session called", "session_id", sessionID)
+
+	if ns.qrShareEng == nil {
+		return mcp.NewToolResultError("QR share engine not available"), nil
+	}
+
+	result, err := ns.qrShareEng.GenerateQR(ctx, sessionID)
+	if err != nil {
+		ns.logger.Warn("negotiate_qr_session failed", "error", err.Error())
+		return mcp.NewToolResultError("Failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"session_id":  result.SessionID,
+		"qr_data":     result.QRData,
+		"format":      result.Format,
+		"description": result.Description,
+		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
