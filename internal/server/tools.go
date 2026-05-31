@@ -35,6 +35,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reminders"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -70,10 +73,13 @@ type NegotiationServer struct {
         budgetEng        *budget.Engine
         vendorspendEng   *vendorspend.Engine
         effectivenessEng *effectiveness.Engine
+        priceAlertEng *pricealerts.Engine
+        reminderEng    *reminders.Engine
+        budgetAlertEng *budgetalerts.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -85,6 +91,36 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 	}
 
 	budgetEng := budget.NewEngine(budgetStore, pricingStore.DB(), logger)
+
+        priceAlertEng := pricealerts.NewEngine(priceAlertStore, func(ctx context.Context, vendor, sku string) (float64, error) {
+                snap, err := trendsStore.GetLatest(ctx, vendor, sku)
+                if err != nil {
+                        return 0, err
+                }
+                if snap == nil {
+                        return 0, nil
+                }
+                return snap.Price, nil
+        }, logger)
+
+        reminderEng := reminders.NewEngine(func(ctx context.Context, daysAhead int) ([]reminders.ContractRow, error) {
+                contracts, err := calendarEngine.Store().GetContractsExpiringSoon(ctx, daysAhead)
+                if err != nil {
+                        return nil, err
+                }
+                rows := make([]reminders.ContractRow, len(contracts))
+                for i, c := range contracts {
+                        rows[i] = reminders.ContractRow{
+                                ID:          c.ID,
+                                Vendor:      c.Vendor,
+                                SKU:         c.SKU,
+                                RenewalDate: c.RenewalDate.Format(time.DateOnly),
+                        }
+                }
+                return rows, nil
+        }, logger)
+
+        budgetAlertEng := budgetalerts.NewEngine(budgetAlertStore, pricingStore.DB(), logger)
 
 	ns := &NegotiationServer{
 		mcpServer: mcpserver.NewMCPServer(
@@ -119,6 +155,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 webhookEng:     webhookEng,
                 budgetEng:      budgetEng,
                 vendorspendEng:   vendorspendEng,
+                priceAlertEng: priceAlertEng,
+                reminderEng:    reminderEng,
+                budgetAlertEng: budgetAlertEng,
                 effectivenessEng: effectivenessEng,
 	}
 
@@ -534,6 +573,45 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithString("user_id", mcp.Description("User ID for streak info (optional)")),
                 mcp.WithString("period", mcp.Description("Period: 30d, 90d, 1y (default: 90d)")),
         ), ns.handleEffectivenessScore)
+        // Tool 5n: negotiate_enable_price_alert
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_enable_price_alert",
+                mcp.WithDescription("Enable a price drop alert for a vendor/SKU. Records baseline price and monitors for drops exceeding the threshold."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+                mcp.WithNumber("threshold_pct", mcp.Description("Price drop percentage to trigger alert (default: 10)")),
+                mcp.WithString("channel", mcp.Description("Notification channel (default: webhook)")),
+        ), ns.handleEnablePriceAlert)
+
+        // Tool 5o: negotiate_check_price_alerts
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_price_alerts",
+                mcp.WithDescription("Check all enabled price alerts against current prices. Returns results with drop percentages and threshold status."),
+        ), ns.handleCheckPriceAlerts)
+
+        // Tool 5p: negotiate_disable_price_alert
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_disable_price_alert",
+                mcp.WithDescription("Disable a price alert for a vendor/SKU."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+        ), ns.handleDisablePriceAlert)
+
+        // Tool 5q: negotiate_check_renewal_reminders
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_renewal_reminders",
+                mcp.WithDescription("Check upcoming contract renewals and categorize by urgency: critical (<7d), soon (<30d), upcoming (<60d)."),
+        ), ns.handleCheckRenewalReminders)
+
+        // Tool 5r: negotiate_check_budget_alerts
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_budget_alerts",
+                mcp.WithDescription("Check all vendor budgets against actual spend. Flags info (>80%), warning (>90%), and critical (>100%) levels."),
+        ), ns.handleCheckBudgetAlerts)
+
+        // Tool 5s: negotiate_budget_alert_history
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_alert_history",
+                mcp.WithDescription("Get budget alert history for a vendor."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithInteger("limit", mcp.Description("Max records (default: 10)")),
+        ), ns.handleBudgetAlertHistory)
+
+        
 
 }
 // ─── Tool Handlers ───
@@ -2810,4 +2888,141 @@ func (ns *NegotiationServer) handleEffectivenessScore(ctx context.Context, req m
 		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
+}
+// ─── Price Alert Handlers ───
+
+func (ns *NegotiationServer) handleEnablePriceAlert(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        vendor, _ := req.RequireString("vendor")
+        sku, _ := req.RequireString("sku")
+        thresholdPct := req.GetFloat("threshold_pct", 10)
+        channel := req.GetString("channel", "webhook")
+
+        ns.logger.Debug("enable_price_alert", "vendor", vendor, "sku", sku, "threshold", thresholdPct)
+
+        rule, err := ns.priceAlertEng.EnableAlert(ctx, vendor, sku, thresholdPct, channel)
+        if err != nil {
+                ns.logger.Warn("enable_price_alert failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Enable price alert failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "vendor":       rule.Vendor,
+                "sku":          rule.SKU,
+                "threshold_pct": rule.ThresholdPct,
+                "channel":     rule.Channel,
+                "enabled":     rule.Enabled,
+                "created_at":  rule.CreatedAt,
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCheckPriceAlerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        ns.logger.Debug("check_price_alerts")
+
+        results, err := ns.priceAlertEng.CheckAlerts(ctx)
+        if err != nil {
+                ns.logger.Warn("check_price_alerts failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Check price alerts failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "results":    results,
+                "count":      len(results),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleDisablePriceAlert(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        vendor, _ := req.RequireString("vendor")
+        sku, _ := req.RequireString("sku")
+
+        ns.logger.Debug("disable_price_alert", "vendor", vendor, "sku", sku)
+
+        if err := ns.priceAlertEng.DisableAlert(ctx, vendor, sku); err != nil {
+                ns.logger.Warn("disable_price_alert failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Disable price alert failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "status":     "disabled",
+                "vendor":     vendor,
+                "sku":        sku,
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+// ─── Renewal Reminder Handlers ───
+
+func (ns *NegotiationServer) handleCheckRenewalReminders(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        ns.logger.Debug("check_renewal_reminders")
+
+        result, err := ns.reminderEng.CheckRenewals(ctx)
+        if err != nil {
+                ns.logger.Warn("check_renewal_reminders failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Check renewal reminders failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "critical":   result.Critical,
+                "soon":       result.Soon,
+                "upcoming":   result.Upcoming,
+                "total":      len(result.Critical) + len(result.Soon) + len(result.Upcoming),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+// ─── Budget Alert Handlers ───
+
+func (ns *NegotiationServer) handleCheckBudgetAlerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        ns.logger.Debug("check_budget_alerts")
+
+        alerts, err := ns.budgetAlertEng.CheckBudgets(ctx)
+        if err != nil {
+                ns.logger.Warn("check_budget_alerts failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Check budget alerts failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "alerts":     alerts,
+                "count":      len(alerts),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleBudgetAlertHistory(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        vendor, _ := req.RequireString("vendor")
+        limit := int(req.GetInt("limit", 10))
+
+        ns.logger.Debug("budget_alert_history", "vendor", vendor, "limit", limit)
+
+        history, err := ns.budgetAlertEng.Store().List(ctx, vendor, limit)
+        if err != nil {
+                ns.logger.Warn("budget_alert_history failed", "error", err.Error())
+                return mcp.NewToolResultError(fmt.Sprintf("Budget alert history failed: %s", err.Error())), nil
+        }
+
+        resp := map[string]any{
+                "vendor":     vendor,
+                "history":    history,
+                "count":      len(history),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
 }

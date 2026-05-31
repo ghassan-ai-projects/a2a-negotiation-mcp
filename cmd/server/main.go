@@ -34,6 +34,8 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
 		"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 )
@@ -229,8 +231,25 @@ func main() {
 	// Initialize effectiveness engine (read-only, uses deal_outcomes + user_streaks)
 	effectivenessEng := effectiveness.NewEngine(pricingStore.DB(), logger)
 
+        // Initialize price alert store and engine
+        priceAlertStore, err := pricealerts.NewStore(pricingStore.DB())
+        if err != nil {
+                logger.Error("failed to initialize price alert store", "error", err.Error())
+                os.Exit(1)
+        }
+
+        // Initialize reminder engine (read-only, uses calendar store)
+        // built inline in NewNegotiationServer
+
+        // Initialize budget alert store and engine
+        budgetAlertStore, err := budgetalerts.NewStore(pricingStore.DB())
+        if err != nil {
+                logger.Error("failed to initialize budget alert store", "error", err.Error())
+                os.Exit(1)
+        }
+
 	// Create MCP negotiation server
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())
