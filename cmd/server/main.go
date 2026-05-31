@@ -29,6 +29,7 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditreports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autotrigger"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/backupmgr"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchcsv"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
@@ -628,7 +629,14 @@ func main() {
         auditReportsEng := auditreports.NewEngine()
 	qrShareEng := qrshare.NewEngine()
 
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, summarizerEng, sentimentEng, translationStore, translationEng, complianceEng, clausesStore, esigStore, esigEng, residencyStore, dashboardStore, chartExportEng, monitorDashEng, webhookLogStore, toolBillingStore, sandboxStore, sandboxEng, schedulerStore, triggerStore, workflowStore, strategyMarketStore, batchCsvEng, vendorReviewsStore, communityBenchStore, qrShareEng, pushStore, pushEng, rateLimitMgrStore, auditReportsEng, serverCfgStore, logger)
+	// Initialize backup manager store
+	backupStore, err := backupmgr.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize backup store", "error", err.Error())
+		os.Exit(1)
+	}
+
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, summarizerEng, sentimentEng, translationStore, translationEng, complianceEng, clausesStore, esigStore, esigEng, residencyStore, dashboardStore, chartExportEng, monitorDashEng, webhookLogStore, toolBillingStore, sandboxStore, sandboxEng, schedulerStore, triggerStore, workflowStore, strategyMarketStore, batchCsvEng, vendorReviewsStore, communityBenchStore, qrShareEng, pushStore, pushEng, rateLimitMgrStore, auditReportsEng, serverCfgStore, backupStore, logger)
 
 	// Initialize gamification store and engine (for streaks, leaderboard, badges)
 	gamifStore, err := gamification.NewStore(pricingStore.DB())
