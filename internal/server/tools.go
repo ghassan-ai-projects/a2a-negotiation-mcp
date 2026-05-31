@@ -80,6 +80,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/translation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/training"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
@@ -173,11 +174,13 @@ type NegotiationServer struct {
 	modelABTestEng        *modelabtesting.Engine
 	promptsStore          *prompts.Store
 	vendorKnowledgeStore *vendorknowledge.Store
+	translationStore      *translation.Store
+	translationEng        *translation.Engine
         summarizerEng *summarizer.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -295,6 +298,8 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		modelABTestEng:        modelABTestEng,
 		promptsStore:          promptsStore,
 		vendorKnowledgeStore:  vendorKnowledgeStore,
+		translationStore:     translationStore,
+		translationEng:       translationEng,
                 summarizerEng:  summarizerEng,
 	}
 
@@ -1176,6 +1181,28 @@ func (ns *NegotiationServer) registerTools() {
 			mcp.WithDescription("Analyze the sentiment of vendor communication text. Returns a score from -1.0 (negative) to 1.0 (positive), confidence level, label, and key phrases found."),
 			mcp.WithString("text", mcp.Required(), mcp.Description("The vendor communication text to analyze (max 10,000 characters)")),
 	), ns.handleSentiment)
+
+		// Tool: negotiate_translate
+		ns.mcpServer.AddTool(mcp.NewTool("negotiate_translate",
+			mcp.WithDescription("Translate negotiation text between supported languages. Supports en, es, fr, de, zh, ja, ar."),
+			mcp.WithString("text", mcp.Required(), mcp.Description("The text to translate")),
+			mcp.WithString("target_language", mcp.Required(), mcp.Description("Target language code (e.g. en, es, fr, de, zh, ja, ar)")),
+		), ns.handleTranslate)
+
+		// Tool: negotiate_set_language_preference
+		ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_language_preference",
+			mcp.WithDescription("Set a vendor's preferred language for negotiation communications."),
+			mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+			mcp.WithString("language", mcp.Required(), mcp.Description("Language code (e.g. en, es, fr, de, zh, ja, ar)")),
+		), ns.handleSetLanguagePreference)
+
+		// Tool: negotiate_language_glossary
+		ns.mcpServer.AddTool(mcp.NewTool("negotiate_language_glossary",
+			mcp.WithDescription("Create or retrieve a glossary of terms for a language pair. Terms should be provided as a JSON array of strings."),
+			mcp.WithString("terms", mcp.Required(), mcp.Description("JSON array of terms to translate (e.g. [\"hello\",\"world\"])")),
+			mcp.WithString("from", mcp.Required(), mcp.Description("Source language code")),
+			mcp.WithString("to", mcp.Required(), mcp.Description("Target language code")),
+		), ns.handleLanguageGlossary)
 }
 
 // ─── Tool Handlers ───
@@ -5756,6 +5783,116 @@ func (ns *NegotiationServer) handleSummarizeSession(ctx context.Context, req mcp
 		"style":      result.Style,
 		"key_points": result.KeyPoints,
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P90: Translation Handlers ───
+
+func (ns *NegotiationServer) handleTranslate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	text, err := req.RequireString("text")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: text"), nil
+	}
+	targetLang, err := req.RequireString("target_language")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: target_language"), nil
+	}
+
+	ns.logger.Debug("negotiate_translate called", "text_length", len(text), "target_language", targetLang)
+
+	if ns.translationEng == nil {
+		return mcp.NewToolResultError("Translation engine is not available"), nil
+	}
+
+	result, err := ns.translationEng.Translate(ctx, text, targetLang)
+	if err != nil {
+		ns.logger.Warn("negotiate_translate failed", "error", err.Error())
+		return mcp.NewToolResultError("Translation failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"original_text":     result.OriginalText,
+		"translated_text":   result.TranslatedText,
+		"target_language":   result.TargetLanguage,
+		"detected_language": result.DetectedLanguage,
+		"duration_ms":       time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSetLanguagePreference(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, err := req.RequireString("vendor")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: vendor"), nil
+	}
+	language, err := req.RequireString("language")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: language"), nil
+	}
+
+	ns.logger.Debug("negotiate_set_language_preference called", "vendor", vendor, "language", language)
+
+	if ns.translationStore == nil {
+		return mcp.NewToolResultError("Translation store is not available"), nil
+	}
+
+	pref, err := ns.translationStore.SetPreference(ctx, vendor, language)
+	if err != nil {
+		ns.logger.Warn("negotiate_set_language_preference failed", "error", err.Error())
+		return mcp.NewToolResultError("Failed to set language preference: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"vendor":   pref.Vendor,
+		"language": pref.Language,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleLanguageGlossary(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	termsRaw, err := req.RequireString("terms")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: terms"), nil
+	}
+	fromLang, err := req.RequireString("from")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: from"), nil
+	}
+	toLang, err := req.RequireString("to")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: to"), nil
+	}
+
+	ns.logger.Debug("negotiate_language_glossary called", "from", fromLang, "to", toLang)
+
+	if ns.translationEng == nil {
+		return mcp.NewToolResultError("Translation engine is not available"), nil
+	}
+
+	var terms []string
+	if err := json.Unmarshal([]byte(termsRaw), &terms); err != nil {
+		return mcp.NewToolResultError("Invalid terms JSON: " + err.Error()), nil
+	}
+
+	glossary, err := ns.translationEng.BuildGlossary(ctx, terms, fromLang, toLang)
+	if err != nil {
+		ns.logger.Warn("negotiate_language_glossary failed", "error", err.Error())
+		return mcp.NewToolResultError("Failed to build glossary: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"from_language": glossary.FromLanguage,
+		"to_language":   glossary.ToLanguage,
+		"entries":       glossary.Entries,
+		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
