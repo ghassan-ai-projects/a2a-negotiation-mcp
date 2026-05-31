@@ -93,6 +93,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/winloss"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dashboard"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -186,10 +187,11 @@ type NegotiationServer struct {
 	clausesStore *contractclauses.Store
 	complianceEng       *compliance.Engine
 	residencyStore *datresidency.Store
+	dashboardStore *dashboard.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -313,6 +315,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 clausesStore:         clausesStore,
                 complianceEng:       complianceEng,
                 residencyStore:       residencyStore,
+                dashboardStore:       dashboardStore,
 	}
 
 	ns.registerTools()
@@ -1282,9 +1285,31 @@ func (ns *NegotiationServer) registerTools() {
         ), ns.handleCheckResidency)
 
         // Tool: negotiate_residency_report
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_residency_report",
-                mcp.WithDescription("Generate a data residency compliance report showing all configured rules and their status."),
-        ), ns.handleResidencyReport)
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_residency_report",
+		mcp.WithDescription("Generate a data residency compliance report showing all configured rules and their status."),
+	), ns.handleResidencyReport)
+
+	// P95: Dashboard Widget Tools
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_create_widget",
+		mcp.WithDescription("Create a new dashboard widget for negotiation metrics."),
+		mcp.WithString("widget_type", mcp.Required(), mcp.Description("Widget type (e.g. price_chart, metric, table)")),
+		mcp.WithString("title", mcp.Required(), mcp.Description("Widget display title")),
+		mcp.WithString("config", mcp.Description("Widget configuration JSON (default: {})")),
+	), ns.handleCreateWidget)
+
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_widgets",
+		mcp.WithDescription("List all dashboard widgets ordered by creation date."),
+	), ns.handleListWidgets)
+
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_render_dashboard",
+		mcp.WithDescription("Render a dashboard containing specific widgets by their IDs."),
+		mcp.WithString("widget_ids", mcp.Description("JSON array of widget IDs to include (optional — returns all if omitted)")),
+	), ns.handleRenderDashboard)
+
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_export_dashboard",
+		mcp.WithDescription("Export all dashboard widgets as a JSON array."),
+		mcp.WithString("format", mcp.Description("Export format: \"json\" for pretty-printed JSON, or any other value for compact JSON (default: json)")),
+	), ns.handleExportDashboard)
 
 }
 
@@ -6327,4 +6352,120 @@ func (ns *NegotiationServer) handleResidencyReport(ctx context.Context, req mcp.
                 "duration_ms":      time.Since(start).Milliseconds(),
         }
         return ns.jsonResult(resp)
+}
+
+// ─── P95: Dashboard Widget Handlers ───
+
+func (ns *NegotiationServer) handleCreateWidget(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	widgetType, err := req.RequireString("widget_type")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: widget_type"), nil
+	}
+	title, err := req.RequireString("title")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: title"), nil
+	}
+	config := req.GetString("config", "{}")
+
+	ns.logger.Debug("negotiate_create_widget called", "widget_type", widgetType, "title", title)
+
+	if ns.dashboardStore == nil {
+		return mcp.NewToolResultError("Dashboard store is not available"), nil
+	}
+
+	widget, err := ns.dashboardStore.CreateWidget(ctx, widgetType, title, config)
+	if err != nil {
+		ns.logger.Warn("negotiate_create_widget failed", "error", err.Error())
+		return mcp.NewToolResultError("Create widget failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          widget.ID,
+		"widget_type": widget.WidgetType,
+		"title":       widget.Title,
+		"config":      widget.Config,
+		"created_at":  widget.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListWidgets(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("negotiate_list_widgets called")
+
+	if ns.dashboardStore == nil {
+		return mcp.NewToolResultError("Dashboard store is not available"), nil
+	}
+
+	widgets, err := ns.dashboardStore.ListWidgets(ctx)
+	if err != nil {
+		ns.logger.Warn("negotiate_list_widgets failed", "error", err.Error())
+		return mcp.NewToolResultError("List widgets failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"widgets":     widgets,
+		"total":       len(widgets),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRenderDashboard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	widgetIDsRaw := req.GetString("widget_ids", "")
+	ns.logger.Debug("negotiate_render_dashboard called", "widget_ids", widgetIDsRaw)
+
+	if ns.dashboardStore == nil {
+		return mcp.NewToolResultError("Dashboard store is not available"), nil
+	}
+
+	var widgetIDs []int
+	if widgetIDsRaw != "" {
+		if err := json.Unmarshal([]byte(widgetIDsRaw), &widgetIDs); err != nil {
+			return mcp.NewToolResultError("Invalid widget_ids JSON: " + err.Error()), nil
+		}
+	}
+
+	dash, err := ns.dashboardStore.RenderDashboard(ctx, widgetIDs)
+	if err != nil {
+		ns.logger.Warn("negotiate_render_dashboard failed", "error", err.Error())
+		return mcp.NewToolResultError("Render dashboard failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"widgets":     dash.Widgets,
+		"count":       dash.Count,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleExportDashboard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	format := req.GetString("format", "json")
+	ns.logger.Debug("negotiate_export_dashboard called", "format", format)
+
+	if ns.dashboardStore == nil {
+		return mcp.NewToolResultError("Dashboard store is not available"), nil
+	}
+
+	exported, err := ns.dashboardStore.ExportDashboard(ctx, format)
+	if err != nil {
+		ns.logger.Warn("negotiate_export_dashboard failed", "error", err.Error())
+		return mcp.NewToolResultError("Export dashboard failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"data":        exported,
+		"format":      format,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
