@@ -87,6 +87,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategymarket"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolbilling"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
@@ -207,10 +208,11 @@ type NegotiationServer struct {
 	schedulerStore      *scheduler.Store
 	workflowStore        *workflow.Store
 	batchCsvEng          *batchcsv.Engine
+        strategyMarketStore *strategymarket.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, batchCsvEng *batchcsv.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, strategyMarketStore *strategymarket.Store, batchCsvEng *batchcsv.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -343,6 +345,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 sandboxEng:            sandboxEng,
 			schedulerStore:     schedulerStore,
 			workflowStore: workflowStore,
+                strategyMarketStore: strategyMarketStore,
 		batchCsvEng: batchCsvEng,
 	}
 
@@ -1178,6 +1181,36 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Get details of a saved industry report by ID."),
 		mcp.WithInteger("report_id", mcp.Required(), mcp.Description("Report ID")),
 	), ns.handleGetReport)
+
+
+        // Tool: negotiate_publish_strategy
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_publish_strategy",
+                mcp.WithDescription("Publish a negotiation strategy to the community marketplace."),
+                mcp.WithString("name", mcp.Required(), mcp.Description("Strategy name")),
+                mcp.WithString("description", mcp.Required(), mcp.Description("Strategy description")),
+                mcp.WithString("config", mcp.Required(), mcp.Description("Strategy configuration as JSON")),
+                mcp.WithString("category", mcp.Required(), mcp.Description("Strategy category")),
+        ), ns.handlePublishStrategy)
+
+        // Tool: negotiate_browse_strategies
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_browse_strategies",
+                mcp.WithDescription("Browse community negotiation strategies, optionally filtered by category and sorted by rating or date."),
+                mcp.WithString("category", mcp.Description("Optional category filter")),
+                mcp.WithString("sort", mcp.Description("Sort order: rating or created_at (default)")),
+        ), ns.handleBrowseStrategies)
+
+        // Tool: negotiate_import_strategy_market
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_import_strategy_market",
+                mcp.WithDescription("Import a specific strategy from the marketplace by ID."),
+                mcp.WithInteger("strategy_id", mcp.Required(), mcp.Description("Strategy ID")),
+        ), ns.handleImportMarketStrategy)
+
+        // Tool: negotiate_rate_strategy
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_rate_strategy",
+                mcp.WithDescription("Rate a marketplace strategy."),
+                mcp.WithInteger("strategy_id", mcp.Required(), mcp.Description("Strategy ID")),
+                mcp.WithNumber("rating", mcp.Required(), mcp.Description("Rating (1.0-5.0)")),
+        ), ns.handleRateStrategy)
 
 	// Tool: negotiate_list_webhook_events
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_webhook_events",
@@ -5677,6 +5710,126 @@ func (ns *NegotiationServer) handleGetReport(ctx context.Context, req mcp.CallTo
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
+	}
+
+// ─── P105: Strategy Marketplace Handlers ───
+
+func (ns *NegotiationServer) handlePublishStrategy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        name, err := req.RequireString("name")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: name"), nil
+        }
+        description, err := req.RequireString("description")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: description"), nil
+        }
+        config, err := req.RequireString("config")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: config"), nil
+        }
+        category, err := req.RequireString("category")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: category"), nil
+        }
+
+        ns.logger.Debug("negotiate_publish_strategy called", "name", name, "category", category)
+
+        strategy, err := ns.strategyMarketStore.PublishStrategy(ctx, name, description, config, category)
+        if err != nil {
+                ns.logger.Warn("negotiate_publish_strategy failed", "error", err.Error())
+                return mcp.NewToolResultError("Publish strategy failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "id":          strategy.ID,
+                "name":        strategy.Name,
+                "category":    strategy.Category,
+                "rating":      strategy.Rating,
+                "created_at":  strategy.CreatedAt,
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleBrowseStrategies(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        category := req.GetString("category", "")
+        sort := req.GetString("sort", "")
+
+        ns.logger.Debug("negotiate_browse_strategies called", "category", category, "sort", sort)
+
+        strategies, err := ns.strategyMarketStore.BrowseStrategies(ctx, category, sort)
+        if err != nil {
+                ns.logger.Warn("negotiate_browse_strategies failed", "error", err.Error())
+                return mcp.NewToolResultError("Browse strategies failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "strategies":  strategies,
+                "total":       len(strategies),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleImportMarketStrategy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        strategyID, err := req.RequireInt("strategy_id")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: strategy_id"), nil
+        }
+
+        ns.logger.Debug("negotiate_import_strategy_market called", "strategy_id", strategyID)
+
+        strategy, err := ns.strategyMarketStore.ImportStrategy(ctx, strategyID)
+        if err != nil {
+                ns.logger.Warn("negotiate_import_strategy_market failed", "error", err.Error())
+                return mcp.NewToolResultError("Import strategy failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "id":          strategy.ID,
+                "name":        strategy.Name,
+                "description": strategy.Description,
+                "config":      strategy.Config,
+                "category":    strategy.Category,
+                "rating":      strategy.Rating,
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRateStrategy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        strategyID, err := req.RequireInt("strategy_id")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: strategy_id"), nil
+        }
+        rating, err := req.RequireFloat("rating")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: rating"), nil
+        }
+
+        ns.logger.Debug("negotiate_rate_strategy called", "strategy_id", strategyID, "rating", rating)
+
+        strategy, err := ns.strategyMarketStore.RateStrategy(ctx, strategyID, rating)
+        if err != nil {
+                ns.logger.Warn("negotiate_rate_strategy failed", "error", err.Error())
+                return mcp.NewToolResultError("Rate strategy failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "id":           strategy.ID,
+                "rating":       strategy.Rating,
+                "rating_count": strategy.RatingCount,
+                "duration_ms":  time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
 }
 
 // ─── P84: AI Agent Performance Handler ───
