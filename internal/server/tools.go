@@ -39,6 +39,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/esignature"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/chartexport"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
@@ -111,6 +112,7 @@ type NegotiationServer struct {
 	sentimentEng          *sentiment.Engine
 	calendarEng           *calendar.Engine
 	playbookEng           *playbook.Engine
+        chartExportEng       *chartexport.Engine
 	trainingEng           *training.Engine
 	logger                *slog.Logger
 	learningEng           *learning.Engine
@@ -191,7 +193,7 @@ type NegotiationServer struct {
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -250,6 +252,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		sellEng:               sellEngine,
 	sentimentEng:          sentimentEng,
 		calendarEng:           calendarEngine,
+        chartExportEng:       chartExportEng,
 		logger:                logger,
 		learningEng:           learningEng,
 		marketplaceEng:        marketplaceEngine,
@@ -1310,6 +1313,17 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Export all dashboard widgets as a JSON array."),
 		mcp.WithString("format", mcp.Description("Export format: \"json\" for pretty-printed JSON, or any other value for compact JSON (default: json)")),
 	), ns.handleExportDashboard)
+
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_export_chart",
+                mcp.WithDescription("Export negotiation data as a chart image (PNG or SVG)."),
+                mcp.WithString("data_source", mcp.Required(), mcp.Description("Name of the data source to chart")),
+                mcp.WithString("chart_type", mcp.Required(), mcp.Description("Chart type: bar, line, pie, area, scatter")),
+                mcp.WithString("format", mcp.Required(), mcp.Description("Export format: png or svg")),
+        ), ns.handleExportChart)
+
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_chart_templates",
+                mcp.WithDescription("List predefined chart templates available for export."),
+        ), ns.handleChartTemplates)
 
 }
 
@@ -6465,6 +6479,72 @@ func (ns *NegotiationServer) handleExportDashboard(ctx context.Context, req mcp.
 	resp := map[string]any{
 		"data":        exported,
 		"format":      format,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Handler: negotiate_export_chart ───
+
+func (ns *NegotiationServer) handleExportChart(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	dataSource, err := req.RequireString("data_source")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: data_source"), nil
+	}
+	chartType, err := req.RequireString("chart_type")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: chart_type"), nil
+	}
+	format, err := req.RequireString("format")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: format"), nil
+	}
+
+	ns.logger.Debug("negotiate_export_chart called", "data_source", dataSource, "chart_type", chartType, "format", format)
+
+	if ns.chartExportEng == nil {
+		return mcp.NewToolResultError("Chart export engine is not available"), nil
+	}
+
+	result, err := ns.chartExportEng.ExportChart(ctx, dataSource, chartType, format)
+	if err != nil {
+		ns.logger.Warn("negotiate_export_chart failed", "error", err.Error())
+		return mcp.NewToolResultError("Chart export failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"format":    result.Format,
+		"chart_type": result.ChartType,
+		"data":      result.Data,
+		"width":     result.Width,
+		"height":    result.Height,
+		"mime_type": result.MimeType,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Handler: negotiate_chart_templates ───
+
+func (ns *NegotiationServer) handleChartTemplates(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ns.logger.Debug("negotiate_chart_templates called")
+
+	if ns.chartExportEng == nil {
+		return mcp.NewToolResultError("Chart export engine is not available"), nil
+	}
+
+	templates, err := ns.chartExportEng.ListTemplates(ctx)
+	if err != nil {
+		ns.logger.Warn("negotiate_chart_templates failed", "error", err.Error())
+		return mcp.NewToolResultError("Failed to list chart templates: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"templates":   templates,
+		"count":       len(templates),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
