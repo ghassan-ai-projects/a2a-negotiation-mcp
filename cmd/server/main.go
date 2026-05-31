@@ -9,74 +9,75 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"syscall"
-	"time"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apikeyrotation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
-		"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/industryreports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/roi"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
-		"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
-		"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricechart"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingindex"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorcomparison"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/playbook"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/training"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/limitedoffer"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/playbook"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricechart"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingindex"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingrefresh"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ratelimitdashboard"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apikeyrotation"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/roi"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/training"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorcomparison"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -178,6 +179,7 @@ func main() {
 	// Initialize negotiation engine for cross-package use
 	negEng := negotiation.NewEngine(pricingStore)
 
+	// Initialize industry reports store (shares the same DB)
 	// Initialize calendar store and engine
 	calendarStore, err := calendar.NewStore(pricingStore.DB())
 	if err != nil {
@@ -245,7 +247,6 @@ func main() {
 	}
 	webhookEng := webhooks.NewEngine(webhookStore, logger)
 
-
 	// Initialize export store (shares the same DB)
 	exportStore, err := export.NewStore(pricingStore.DB())
 	if err != nil {
@@ -273,41 +274,40 @@ func main() {
 	// Initialize effectiveness engine (read-only, uses deal_outcomes + user_streaks)
 	effectivenessEng := effectiveness.NewEngine(pricingStore.DB(), logger)
 
-        // Initialize price alert store and engine
-        priceAlertStore, err := pricealerts.NewStore(pricingStore.DB())
-        if err != nil {
-                logger.Error("failed to initialize price alert store", "error", err.Error())
-                os.Exit(1)
-        }
+	// Initialize price alert store and engine
+	priceAlertStore, err := pricealerts.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize price alert store", "error", err.Error())
+		os.Exit(1)
+	}
 
-        // Initialize reminder engine (read-only, uses calendar store)
-        // built inline in NewNegotiationServer
+	// Initialize reminder engine (read-only, uses calendar store)
+	// built inline in NewNegotiationServer
 
-        // Initialize budget alert store and engine
-        budgetAlertStore, err := budgetalerts.NewStore(pricingStore.DB())
-        if err != nil {
-                logger.Error("failed to initialize budget alert store", "error", err.Error())
-                os.Exit(1)
-        }
+	// Initialize budget alert store and engine
+	budgetAlertStore, err := budgetalerts.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize budget alert store", "error", err.Error())
+		os.Exit(1)
+	}
 
 	// Create MCP negotiation server
 
-        // Initialize vendor comparison, batch negotiation, and strategy comparison engines
-        vendorComparisonEng := vendorcomparison.NewEngine(pricingStore.DB(), logger)
-        batchNegStore, err := batchnegotiation.NewStore(pricingStore.DB())
-        if err != nil {
-                logger.Error("failed to initialize batch negotiation store", "error", err.Error())
-                os.Exit(1)
-        }
-        batchNegotiationEng := batchnegotiation.NewEngine(batchNegStore, historyStore, logger)
-        strategyComparisonEng := strategycomparison.NewEngine(pricingStore.DB(), logger)
+	// Initialize vendor comparison, batch negotiation, and strategy comparison engines
+	vendorComparisonEng := vendorcomparison.NewEngine(pricingStore.DB(), logger)
+	batchNegStore, err := batchnegotiation.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize batch negotiation store", "error", err.Error())
+		os.Exit(1)
+	}
+	batchNegotiationEng := batchnegotiation.NewEngine(batchNegStore, historyStore, logger)
+	strategyComparisonEng := strategycomparison.NewEngine(pricingStore.DB(), logger)
 
-        // Initialize reports, pricing index, and price chart engines
-        reportsEng := reports.NewEngine(historyStore)
-        pricingIndexEng := pricingindex.NewEngine(pricingStore)
-        priceChartEng := pricechart.NewEngine(trendsStore, historyStore)
+	// Initialize reports, pricing index, and price chart engines
+	reportsEng := reports.NewEngine(historyStore)
+	pricingIndexEng := pricingindex.NewEngine(pricingStore)
+	priceChartEng := pricechart.NewEngine(trendsStore, historyStore)
 
-	
 	// Initialize workspace store and engine
 	workspaceStore, err := workspaces.NewStore(pricingStore.DB())
 	if err != nil {
@@ -368,15 +368,24 @@ func main() {
 
 	// Initialize budget management store and engine (P57)
 	budgetmgmtStore, err := budgetmgmt.NewStore(pricingStore.DB())
-	if err != nil { logger.Error("budgetmgmt store", "error", err); os.Exit(1) }
+	if err != nil {
+		logger.Error("budgetmgmt store", "error", err)
+		os.Exit(1)
+	}
 	budgetMgmtEng := budgetmgmt.NewEngine(budgetmgmtStore, pricingStore.DB(), logger)
 	// Initialize spending caps store and engine (P58)
 	spendingcapsStore, err := spendingcaps.NewStore(pricingStore.DB())
-	if err != nil { logger.Error("spendingcaps store", "error", err); os.Exit(1) }
+	if err != nil {
+		logger.Error("spendingcaps store", "error", err)
+		os.Exit(1)
+	}
 	spendingCapsEng := spendingcaps.NewEngine(spendingcapsStore, pricingStore.DB(), logger)
 	// Initialize savings realization store and engine (P59)
 	savingsrealizationStore, err := savingsrealization.NewStore(pricingStore.DB())
-	if err != nil { logger.Error("savingsrealization store", "error", err); os.Exit(1) }
+	if err != nil {
+		logger.Error("savingsrealization store", "error", err)
+		os.Exit(1)
+	}
 	savingsRealizationEng := savingsrealization.NewEngine(savingsrealizationStore, logger)
 
 	// Initialize TCO engine (P60)
@@ -421,8 +430,6 @@ func main() {
 	}
 	rateLimitDashEng := ratelimitdashboard.NewEngine(rateLimitDashStore, logger)
 
-
-
 	// Initialize tool stats store (P70)
 	toolStatsStore, err := toolstats.NewStore(pricingStore.DB())
 	if err != nil {
@@ -454,18 +461,24 @@ func main() {
 	ipWhitelistEng := ipwhitelist.NewEngine()
 	dataRetentionEng := dataretention.NewEngine()
 	playbookEng := playbook.NewEngine()
+	industryReportsStore, err := industryreports.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize industry reports store", "error", err.Error())
+		os.Exit(1)
+	}
+
 	trainingEng := training.NewEngine()
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, logger)
 
-        // Initialize gamification store and engine (for streaks, leaderboard, badges)
-        gamifStore, err := gamification.NewStore(pricingStore.DB())
-        if err != nil {
-                logger.Error("failed to initialize gamification store", "error", err.Error())
-                os.Exit(1)
-        }
-        gamifEng := gamification.New(gamifStore, logger)
-        negServer.SetGamificationEngine(gamifEng)
+	// Initialize gamification store and engine (for streaks, leaderboard, badges)
+	gamifStore, err := gamification.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize gamification store", "error", err.Error())
+		os.Exit(1)
+	}
+	gamifEng := gamification.New(gamifStore, logger)
+	negServer.SetGamificationEngine(gamifEng)
 
 	// Set the MCP server on the API docs engine (needed to enumerate tools)
 	apiDocsEng = apidocs.NewEngine(negServer.MCPServer())
@@ -473,7 +486,6 @@ negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine
 	autocompleteEng = autocomplete.NewEngine(negServer.MCPServer())
 	// Update healthcheck with actual tool count after all tools are registered
 	healthCheckEng.SetToolCount(len(negServer.MCPServer().ListTools()))
-
 
 	// Handle graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())

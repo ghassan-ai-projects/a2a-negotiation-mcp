@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,76 +11,77 @@ import (
 	"time"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apikeyrotation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/benchmark"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/winloss"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/group"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/health"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/industryreports"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/limitedoffer"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/marketplace"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/miner"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/negotiation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/parallel"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/playbook"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricechart"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricing"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingindex"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingrefresh"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/quote"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ratelimitdashboard"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reminders"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/roi"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricealerts"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reminders"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetalerts"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricechart"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingindex"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorcomparison"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/limitedoffer"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingrefresh"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ratelimitdashboard"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
-	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apikeyrotation"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataretention"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
-        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/training"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/trends"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorcomparison"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/webhooks"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/winloss"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -87,82 +89,83 @@ import (
 
 // NegotiationServer wraps the MCP server with business logic.
 type NegotiationServer struct {
-	mcpServer      *mcpserver.MCPServer
-	pricingStore   *pricing.Store
-	negotiationEng *negotiation.Engine
-	historyStore   *history.Store
-	minerEng       *miner.Engine
-	groupEng       *group.Engine
-	sellEng        *sell.Engine
-	calendarEng    *calendar.Engine
-	playbookEng    *playbook.Engine
-        trainingEng    *training.Engine
-	logger         *slog.Logger
-	learningEng    *learning.Engine
-	healthEng      *health.Engine
-        marketplaceEng *marketplace.Engine
-	slaEng       *sla.Engine
-	webhookEng   *webhooks.Engine
-	slackClient  *slack.Client
-        apiKeyStore  *a2a.APIKeyStore
-        quoteEng     *quote.Engine
-        contractEng  *contract.Engine
-        gamificationEng *gamification.Engine
-	roiEng          *roi.Engine
-	benchmarkEng    *benchmark.Engine
-	trendsEng       *trends.Engine
-        winlossEng      *winloss.Engine
-        exportEng        *export.Engine
-        notifyEng        *notify.Engine
-        budgetEng        *budget.Engine
-        vendorspendEng   *vendorspend.Engine
-        effectivenessEng *effectiveness.Engine
-        priceAlertEng *pricealerts.Engine
-        reminderEng    *reminders.Engine
-        budgetAlertEng *budgetalerts.Engine
-        reportsEng     *reports.Engine
-        pricingIndexEng *pricingindex.Engine
-        priceChartEng   *pricechart.Engine
-	vendorComparisonEng    *vendorcomparison.Engine
-	batchNegotiationEng    *batchnegotiation.Engine
-	strategyComparisonEng  *strategycomparison.Engine
-	workspacesEng *workspaces.Engine
-	auditLogEng    *auditlog.Engine
-	userActivityEng *useractivity.Engine
-	sharedStrategiesEng *sharedstrategies.Engine
+	mcpServer             *mcpserver.MCPServer
+	pricingStore          *pricing.Store
+	negotiationEng        *negotiation.Engine
+	historyStore          *history.Store
+	minerEng              *miner.Engine
+	groupEng              *group.Engine
+	sellEng               *sell.Engine
+	calendarEng           *calendar.Engine
+	playbookEng           *playbook.Engine
+	trainingEng           *training.Engine
+	logger                *slog.Logger
+	learningEng           *learning.Engine
+	healthEng             *health.Engine
+	marketplaceEng        *marketplace.Engine
+	slaEng                *sla.Engine
+	webhookEng            *webhooks.Engine
+	slackClient           *slack.Client
+	apiKeyStore           *a2a.APIKeyStore
+	quoteEng              *quote.Engine
+	contractEng           *contract.Engine
+	gamificationEng       *gamification.Engine
+	roiEng                *roi.Engine
+	benchmarkEng          *benchmark.Engine
+	trendsEng             *trends.Engine
+	winlossEng            *winloss.Engine
+	exportEng             *export.Engine
+	notifyEng             *notify.Engine
+	budgetEng             *budget.Engine
+	vendorspendEng        *vendorspend.Engine
+	effectivenessEng      *effectiveness.Engine
+	priceAlertEng         *pricealerts.Engine
+	reminderEng           *reminders.Engine
+	budgetAlertEng        *budgetalerts.Engine
+	reportsEng            *reports.Engine
+	pricingIndexEng       *pricingindex.Engine
+	priceChartEng         *pricechart.Engine
+	vendorComparisonEng   *vendorcomparison.Engine
+	batchNegotiationEng   *batchnegotiation.Engine
+	strategyComparisonEng *strategycomparison.Engine
+	workspacesEng         *workspaces.Engine
+	auditLogEng           *auditlog.Engine
+	userActivityEng       *useractivity.Engine
+	sharedStrategiesEng   *sharedstrategies.Engine
 	notesEng              *notes.Engine
-	approvalsEng           *approvals.Engine
-	contractTemplatesEng *contracttemplates.Engine
-	contractRiskEng     *contractrisk.Engine
-	scorecardsEng       *scorecards.Engine
-	budgetMgmtEng        *budgetmgmt.Engine
-	spendingCapsEng        *spendingcaps.Engine
+	approvalsEng          *approvals.Engine
+	contractTemplatesEng  *contracttemplates.Engine
+	contractRiskEng       *contractrisk.Engine
+	scorecardsEng         *scorecards.Engine
+	budgetMgmtEng         *budgetmgmt.Engine
+	spendingCapsEng       *spendingcaps.Engine
 	savingsRealizationEng *savingsrealization.Engine
-	tcoEng              *tco.Engine
-	alertHistoryEng *alerthistory.Engine
-	slaCreditEng     *slacredit.Engine
-	commLogEng       *commlog.Engine
-	dataImportEng       *dataimport.Engine
-	costAllocationEng   *costallocation.Engine
-	limitedOfferEng      *limitedoffer.Engine
-	pricingRefreshEng    *pricingrefresh.Engine
-	rateLimitDashEng     *ratelimitdashboard.Engine
-	apiDocsEng     *apidocs.Engine
-	toolStatsEng    *toolstats.Engine
-	healthCheckEng  *healthcheck.Engine
-	apiKeyRotateEng *apikeyrotation.Engine
-	ipWhitelistEng  *ipwhitelist.Engine
-	dataRetentionEng *dataretention.Engine
-	autocompleteEng *autocomplete.Engine
-	metricsEng      *metrics.Engine
-	shutdownEng     *shutdown.Engine
-	coverageEng     *coverage.Engine
-	dependencyEng   *dependency.Engine
-	contribguideEng *contribguide.Engine
+	tcoEng                *tco.Engine
+	alertHistoryEng       *alerthistory.Engine
+	slaCreditEng          *slacredit.Engine
+	commLogEng            *commlog.Engine
+	dataImportEng         *dataimport.Engine
+	costAllocationEng     *costallocation.Engine
+	limitedOfferEng       *limitedoffer.Engine
+	pricingRefreshEng     *pricingrefresh.Engine
+	rateLimitDashEng      *ratelimitdashboard.Engine
+	apiDocsEng            *apidocs.Engine
+	toolStatsEng          *toolstats.Engine
+	healthCheckEng        *healthcheck.Engine
+	apiKeyRotateEng       *apikeyrotation.Engine
+	ipWhitelistEng        *ipwhitelist.Engine
+	dataRetentionEng      *dataretention.Engine
+	autocompleteEng       *autocomplete.Engine
+	metricsEng            *metrics.Engine
+	shutdownEng           *shutdown.Engine
+	coverageEng           *coverage.Engine
+	dependencyEng         *dependency.Engine
+	contribguideEng       *contribguide.Engine
+	industryReportsStore   *industryreports.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -175,35 +178,35 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 
 	budgetEng := budget.NewEngine(budgetStore, pricingStore.DB(), logger)
 
-        priceAlertEng := pricealerts.NewEngine(priceAlertStore, func(ctx context.Context, vendor, sku string) (float64, error) {
-                snap, err := trendsStore.GetLatest(ctx, vendor, sku)
-                if err != nil {
-                        return 0, err
-                }
-                if snap == nil {
-                        return 0, nil
-                }
-                return snap.Price, nil
-        }, logger)
+	priceAlertEng := pricealerts.NewEngine(priceAlertStore, func(ctx context.Context, vendor, sku string) (float64, error) {
+		snap, err := trendsStore.GetLatest(ctx, vendor, sku)
+		if err != nil {
+			return 0, err
+		}
+		if snap == nil {
+			return 0, nil
+		}
+		return snap.Price, nil
+	}, logger)
 
-        reminderEng := reminders.NewEngine(func(ctx context.Context, daysAhead int) ([]reminders.ContractRow, error) {
-                contracts, err := calendarEngine.Store().GetContractsExpiringSoon(ctx, daysAhead)
-                if err != nil {
-                        return nil, err
-                }
-                rows := make([]reminders.ContractRow, len(contracts))
-                for i, c := range contracts {
-                        rows[i] = reminders.ContractRow{
-                                ID:          c.ID,
-                                Vendor:      c.Vendor,
-                                SKU:         c.SKU,
-                                RenewalDate: c.RenewalDate.Format(time.DateOnly),
-                        }
-                }
-                return rows, nil
-        }, logger)
+	reminderEng := reminders.NewEngine(func(ctx context.Context, daysAhead int) ([]reminders.ContractRow, error) {
+		contracts, err := calendarEngine.Store().GetContractsExpiringSoon(ctx, daysAhead)
+		if err != nil {
+			return nil, err
+		}
+		rows := make([]reminders.ContractRow, len(contracts))
+		for i, c := range contracts {
+			rows[i] = reminders.ContractRow{
+				ID:          c.ID,
+				Vendor:      c.Vendor,
+				SKU:         c.SKU,
+				RenewalDate: c.RenewalDate.Format(time.DateOnly),
+			}
+		}
+		return rows, nil
+	}, logger)
 
-        budgetAlertEng := budgetalerts.NewEngine(budgetAlertStore, pricingStore.DB(), logger)
+	budgetAlertEng := budgetalerts.NewEngine(budgetAlertStore, pricingStore.DB(), logger)
 
 	ns := &NegotiationServer{
 		mcpServer: mcpserver.NewMCPServer(
@@ -213,67 +216,67 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 			mcpserver.WithResourceCapabilities(true, true),
 			mcpserver.WithLogging(),
 		),
-		pricingStore:   pricingStore,
-		negotiationEng: eng,
-		historyStore:   historyStore,
-		minerEng:       miningEng,
-		groupEng:       groupEngine,
-		sellEng:        sellEngine,
-		calendarEng:    calendarEngine,
-		logger:         logger,
-		learningEng:    learningEng,
-                marketplaceEng: marketplaceEngine,
-		slackClient:    slackClient,
-		apiKeyStore:    apiKeyStore,
-                quoteEng:       quote.NewEngine(pricingStore, logger),
-		roiEng:          roi.NewEngine(roiStore),
-		benchmarkEng:    benchmark.NewEngine(historyStore, logger),
-		trendsEng:       trends.NewEngine(trendsStore, logger),
-                winlossEng:      winloss.NewEngine(historyStore, logger),
-                exportEng:        export.NewEngine(exportStore, historyStore, logger),
-                notifyEng:        notify.NewEngine(notifyStore, logger),
-		contractEng:    contract.NewEngine(calendarEngine, logger),
-                healthEng:      healthEngine,
-                slaEng:         slaEngine,
-                webhookEng:     webhookEng,
-                budgetEng:      budgetEng,
-                vendorspendEng:   vendorspendEng,
-                priceAlertEng: priceAlertEng,
-                reminderEng:    reminderEng,
-                budgetAlertEng: budgetAlertEng,
-                reportsEng:     reportsEng,
-                pricingIndexEng: pricingIndexEng,
-                priceChartEng:   priceChartEng,
-                effectivenessEng: effectivenessEng,
-		contractTemplatesEng: contractTemplatesEng,
-		contractRiskEng:     contractRiskEng,
-		scorecardsEng:       scorecardsEng,
-		sharedStrategiesEng: sharedStrategiesEng,
+		pricingStore:          pricingStore,
+		negotiationEng:        eng,
+		historyStore:          historyStore,
+		minerEng:              miningEng,
+		groupEng:              groupEngine,
+		sellEng:               sellEngine,
+		calendarEng:           calendarEngine,
+		logger:                logger,
+		learningEng:           learningEng,
+		marketplaceEng:        marketplaceEngine,
+		slackClient:           slackClient,
+		apiKeyStore:           apiKeyStore,
+		quoteEng:              quote.NewEngine(pricingStore, logger),
+		roiEng:                roi.NewEngine(roiStore),
+		benchmarkEng:          benchmark.NewEngine(historyStore, logger),
+		trendsEng:             trends.NewEngine(trendsStore, logger),
+		winlossEng:            winloss.NewEngine(historyStore, logger),
+		exportEng:             export.NewEngine(exportStore, historyStore, logger),
+		notifyEng:             notify.NewEngine(notifyStore, logger),
+		contractEng:           contract.NewEngine(calendarEngine, logger),
+		healthEng:             healthEngine,
+		slaEng:                slaEngine,
+		webhookEng:            webhookEng,
+		budgetEng:             budgetEng,
+		vendorspendEng:        vendorspendEng,
+		priceAlertEng:         priceAlertEng,
+		reminderEng:           reminderEng,
+		budgetAlertEng:        budgetAlertEng,
+		reportsEng:            reportsEng,
+		pricingIndexEng:       pricingIndexEng,
+		priceChartEng:         priceChartEng,
+		effectivenessEng:      effectivenessEng,
+		contractTemplatesEng:  contractTemplatesEng,
+		contractRiskEng:       contractRiskEng,
+		scorecardsEng:         scorecardsEng,
+		sharedStrategiesEng:   sharedStrategiesEng,
 		notesEng:              notesEng,
-		approvalsEng:           approvalsEng,
-		budgetMgmtEng:        budgetMgmtEng,
-		spendingCapsEng:        spendingCapsEng,
+		approvalsEng:          approvalsEng,
+		budgetMgmtEng:         budgetMgmtEng,
+		spendingCapsEng:       spendingCapsEng,
 		savingsRealizationEng: savingsRealizationEng,
-		alertHistoryEng: alertHistoryEng,
-		slaCreditEng:     slaCreditEng,
-		commLogEng:       commLogEng,
-                limitedOfferEng:      limitedOfferEng,
-                pricingRefreshEng:    pricingRefreshEng,
-                rateLimitDashEng:     rateLimitDashEng,
-		apiDocsEng:     apiDocsEng,
-		toolStatsEng:    toolStatsEng,
-		healthCheckEng:  healthCheckEng,
-		autocompleteEng: autocompleteEng,
-		metricsEng:      metricsEng,
-		shutdownEng:     shutdownEng,
-		coverageEng:     coverageEng,
-		dependencyEng:   dependencyEng,
-		contribguideEng: contribguideEng,
-		apiKeyRotateEng: apiKeyRotateEng,
-		ipWhitelistEng:  ipWhitelistEng,
-		dataRetentionEng: dataRetentionEng,
-		playbookEng:      playbookEng,
-                trainingEng:      trainingEng,
+		alertHistoryEng:       alertHistoryEng,
+		slaCreditEng:          slaCreditEng,
+		commLogEng:            commLogEng,
+		limitedOfferEng:       limitedOfferEng,
+		pricingRefreshEng:     pricingRefreshEng,
+		rateLimitDashEng:      rateLimitDashEng,
+		apiDocsEng:            apiDocsEng,
+		toolStatsEng:          toolStatsEng,
+		healthCheckEng:        healthCheckEng,
+		autocompleteEng:       autocompleteEng,
+		metricsEng:            metricsEng,
+		shutdownEng:           shutdownEng,
+		coverageEng:           coverageEng,
+		dependencyEng:         dependencyEng,
+		contribguideEng:       contribguideEng,
+		apiKeyRotateEng:       apiKeyRotateEng,
+		ipWhitelistEng:        ipWhitelistEng,
+		dataRetentionEng:      dataRetentionEng,
+		playbookEng:           playbookEng,
+		trainingEng:           trainingEng,
 	}
 
 	ns.registerTools()
@@ -318,7 +321,7 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Execute the multi-round negotiation loop for a session. Each round generates a counter-offer. Auto-approves if offer meets threshold."),
 		mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID from negotiate_create_session")),
 		mcp.WithNumber("auto_approve_threshold", mcp.Description("Auto-accept if offer is at or below this amount (optional)")),
-                mcp.WithString("user_id", mcp.Description("User identifier for gamification tracking (optional)")),
+		mcp.WithString("user_id", mcp.Description("User identifier for gamification tracking (optional)")),
 	), ns.handleRunNegotiation)
 
 	// Tool 5: history
@@ -412,75 +415,75 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Get global learning insights across all vendors — strategy performance breakdown and top vendors by deal count."),
 	), ns.handleLearningInsights)
 
-        // Tool 18: negotiate_failure_autopsy
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_failure_autopsy",
-                mcp.WithDescription("Get a detailed autopsy of why a negotiation failed — failure reason, final offer, vendor best offer, and gap."),
-                mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID to autopsy")),
-        ), ns.handleFailureAutopsy)
+	// Tool 18: negotiate_failure_autopsy
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_failure_autopsy",
+		mcp.WithDescription("Get a detailed autopsy of why a negotiation failed — failure reason, final offer, vendor best offer, and gap."),
+		mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID to autopsy")),
+	), ns.handleFailureAutopsy)
 
-        // Tool 19: negotiate_failure_patterns
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_failure_patterns",
-                mcp.WithDescription("Analyze failure patterns for a specific vendor — shows recurring failure reasons and suggested fixes."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to analyze")),
-        ), ns.handleFailurePatterns)
+	// Tool 19: negotiate_failure_patterns
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_failure_patterns",
+		mcp.WithDescription("Analyze failure patterns for a specific vendor — shows recurring failure reasons and suggested fixes."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to analyze")),
+	), ns.handleFailurePatterns)
 
-        // Tool 20: negotiate_common_failures
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_common_failures",
-                mcp.WithDescription("Get the most common failure patterns across all vendors, ranked by frequency."),
-                mcp.WithInteger("limit", mcp.Description("Max number of patterns to return (default 10)")),
-        ), ns.handleCommonFailures)
+	// Tool 20: negotiate_common_failures
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_common_failures",
+		mcp.WithDescription("Get the most common failure patterns across all vendors, ranked by frequency."),
+		mcp.WithInteger("limit", mcp.Description("Max number of patterns to return (default 10)")),
+	), ns.handleCommonFailures)
 
-        // Tool 21: negotiate_list_unused_seats
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_unused_seats",
-                mcp.WithDescription("List unused SaaS seats for sale on the marketplace. Ask price must be below original list price."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
-                mcp.WithInteger("seats", mcp.Required(), mcp.Description("Number of unused seats available")),
-                mcp.WithNumber("orig_price", mcp.Required(), mcp.Description("Original per-seat price")),
-                mcp.WithNumber("ask_price", mcp.Required(), mcp.Description("Asking price per seat")),
-                mcp.WithNumber("min_price", mcp.Description("Minimum (walk-away) price per seat")),
-                mcp.WithInteger("expires_in_hours", mcp.Description("Listing duration in hours (default: 168)")),
-        ), ns.handleListUnusedSeats)
+	// Tool 21: negotiate_list_unused_seats
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_unused_seats",
+		mcp.WithDescription("List unused SaaS seats for sale on the marketplace. Ask price must be below original list price."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
+		mcp.WithInteger("seats", mcp.Required(), mcp.Description("Number of unused seats available")),
+		mcp.WithNumber("orig_price", mcp.Required(), mcp.Description("Original per-seat price")),
+		mcp.WithNumber("ask_price", mcp.Required(), mcp.Description("Asking price per seat")),
+		mcp.WithNumber("min_price", mcp.Description("Minimum (walk-away) price per seat")),
+		mcp.WithInteger("expires_in_hours", mcp.Description("Listing duration in hours (default: 168)")),
+	), ns.handleListUnusedSeats)
 
-        // Tool 22: negotiate_search_used
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_search_used",
-                mcp.WithDescription("Search for unused SaaS seat listings for a vendor/SKU, sorted by ask price ascending."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to search for")),
-                mcp.WithString("sku", mcp.Description("SKU filter (optional)")),
-                mcp.WithInteger("max_seats", mcp.Description("Maximum seats filter (optional)")),
-        ), ns.handleSearchUsed)
+	// Tool 22: negotiate_search_used
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_search_used",
+		mcp.WithDescription("Search for unused SaaS seat listings for a vendor/SKU, sorted by ask price ascending."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name to search for")),
+		mcp.WithString("sku", mcp.Description("SKU filter (optional)")),
+		mcp.WithInteger("max_seats", mcp.Description("Maximum seats filter (optional)")),
+	), ns.handleSearchUsed)
 
-        // Tool 23: negotiate_offer_seats
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_offer_seats",
-                mcp.WithDescription("Place a buy offer on a used-seats listing. Auto-accepts if ask price is within your max price."),
-                mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID to make an offer on")),
-                mcp.WithString("buyer_id", mcp.Required(), mcp.Description("Buyer identifier")),
-                mcp.WithInteger("seats", mcp.Required(), mcp.Description("Number of seats to buy")),
-                mcp.WithNumber("max_price", mcp.Required(), mcp.Description("Maximum price per seat you are willing to pay")),
-        ), ns.handleOfferSeats)
+	// Tool 23: negotiate_offer_seats
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_offer_seats",
+		mcp.WithDescription("Place a buy offer on a used-seats listing. Auto-accepts if ask price is within your max price."),
+		mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID to make an offer on")),
+		mcp.WithString("buyer_id", mcp.Required(), mcp.Description("Buyer identifier")),
+		mcp.WithInteger("seats", mcp.Required(), mcp.Description("Number of seats to buy")),
+		mcp.WithNumber("max_price", mcp.Required(), mcp.Description("Maximum price per seat you are willing to pay")),
+	), ns.handleOfferSeats)
 
-        // Tool 24: negotiate_accept_offer
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_accept_offer",
-                mcp.WithDescription("Accept a pending offer on a listing. Creates a transaction with 5% platform fee and marks listing as completed."),
-                mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID")),
-                mcp.WithString("offer_id", mcp.Required(), mcp.Description("Offer ID to accept")),
-        ), ns.handleAcceptOffer)
+	// Tool 24: negotiate_accept_offer
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_accept_offer",
+		mcp.WithDescription("Accept a pending offer on a listing. Creates a transaction with 5% platform fee and marks listing as completed."),
+		mcp.WithString("listing_id", mcp.Required(), mcp.Description("Listing ID")),
+		mcp.WithString("offer_id", mcp.Required(), mcp.Description("Offer ID to accept")),
+	), ns.handleAcceptOffer)
 
-        // Tool 25: negotiate_marketplace_overview
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_marketplace_overview",
-                mcp.WithDescription("Get marketplace overview: active listings count and recent transactions."),
-        ), ns.handleMarketplaceOverview)
+	// Tool 25: negotiate_marketplace_overview
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_marketplace_overview",
+		mcp.WithDescription("Get marketplace overview: active listings count and recent transactions."),
+	), ns.handleMarketplaceOverview)
 
-        // Tool 26: negotiate_configure_slack
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_configure_slack",
-                mcp.WithDescription("Configure Slack webhook URL for negotiation alerts."),
-                mcp.WithString("webhook_url", mcp.Required(), mcp.Description("Slack incoming webhook URL")),
-        ), ns.handleConfigureSlack)
+	// Tool 26: negotiate_configure_slack
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_configure_slack",
+		mcp.WithDescription("Configure Slack webhook URL for negotiation alerts."),
+		mcp.WithString("webhook_url", mcp.Required(), mcp.Description("Slack incoming webhook URL")),
+	), ns.handleConfigureSlack)
 
-        // Tool 27: negotiate_slack_status
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_slack_status",
-                mcp.WithDescription("Check if Slack integration is configured and when the last alert was sent."),
-        ), ns.handleSlackStatus)
+	// Tool 27: negotiate_slack_status
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_slack_status",
+		mcp.WithDescription("Check if Slack integration is configured and when the last alert was sent."),
+	), ns.handleSlackStatus)
 
 	// SLA Tools
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_add_sla",
@@ -509,35 +512,33 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_sla_report",
 		mcp.WithDescription("Get SLA report for a given month with all contracts, breaches, and credits."),
 		mcp.WithString("month", mcp.Required(), mcp.Description("Month (RFC3339 date, e.g. 2026-06-01T00:00:00Z)")),
-        ), ns.handleSLAReport)
+	), ns.handleSLAReport)
 
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_analyze_quote",
-                mcp.WithDescription("Analyze a vendor quote email. Extracts vendor, SKU, quantity, price, and term from raw text, then cross-references against pricing database for market range and counter-offer recommendation."),
-                mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full text of the vendor quote email")),
-                mcp.WithString("vendor", mcp.Description("Vendor name override (optional — extracted from text if omitted)")),
-                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
-        ), ns.handleAnalyzeQuote)
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_analyze_quote",
+		mcp.WithDescription("Analyze a vendor quote email. Extracts vendor, SKU, quantity, price, and term from raw text, then cross-references against pricing database for market range and counter-offer recommendation."),
+		mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full text of the vendor quote email")),
+		mcp.WithString("vendor", mcp.Description("Vendor name override (optional — extracted from text if omitted)")),
+		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+	), ns.handleAnalyzeQuote)
 
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_counter",
-                mcp.WithDescription("Generate a formatted counter-offer text from a quote analysis JSON."),
-                mcp.WithString("analysis_json", mcp.Required(), mcp.Description("The full QuoteAnalysis JSON from negotiate_analyze_quote")),
-        ), ns.handleGenerateCounter)
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_counter",
+		mcp.WithDescription("Generate a formatted counter-offer text from a quote analysis JSON."),
+		mcp.WithString("analysis_json", mcp.Required(), mcp.Description("The full QuoteAnalysis JSON from negotiate_analyze_quote")),
+	), ns.handleGenerateCounter)
 
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_parse_contract",
-                mcp.WithDescription("Parse contract text to extract key terms: end dates, auto-renewal, price lock periods, termination notice. Returns structured terms with per-field confidence levels."),
-                mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full contract text to parse")),
-                mcp.WithString("vendor", mcp.Description("Vendor name (optional)")),
-                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
-        ), ns.handleParseContract)
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_parse_contract",
+		mcp.WithDescription("Parse contract text to extract key terms: end dates, auto-renewal, price lock periods, termination notice. Returns structured terms with per-field confidence levels."),
+		mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full contract text to parse")),
+		mcp.WithString("vendor", mcp.Description("Vendor name (optional)")),
+		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+	), ns.handleParseContract)
 
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_parse_and_calendar",
-                mcp.WithDescription("Parse contract text AND auto-populate the renewal calendar. Combines parsing with calendar entry creation."),
-                mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full contract text to parse")),
-                mcp.WithString("vendor", mcp.Description("Vendor name (optional)")),
-                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
-        ), ns.handleParseAndCalendar)
-
-
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_parse_and_calendar",
+		mcp.WithDescription("Parse contract text AND auto-populate the renewal calendar. Combines parsing with calendar entry creation."),
+		mcp.WithString("raw_text", mcp.Required(), mcp.Description("The full contract text to parse")),
+		mcp.WithString("vendor", mcp.Description("Vendor name (optional)")),
+		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+	), ns.handleParseAndCalendar)
 
 	// Auth & Rate-limit Tools
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_api_key",
@@ -549,7 +550,6 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Check current API key count and rate limit configuration."),
 	), ns.handleRateLimitStatus)
 
-
 	// Tool: negotiate_find_cheapest_model
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_find_cheapest_model",
 		mcp.WithDescription("Find the cheapest AI model for a given task type. Returns models sorted by price per 1M input tokens, with optional budget and latency filters."),
@@ -558,37 +558,35 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithNumber("max_latency_ms", mcp.Description("Maximum latency in milliseconds (optional)")),
 	), ns.handleFindCheapestModel)
 
+	// Tool: negotiate_vendor_reputation
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_reputation",
+		mcp.WithDescription("Get the negotiation reputation for a vendor — tracks how flexible or rigid they've been across past deals."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name (e.g. Slack, GitHub, Salesforce)")),
+	), ns.handleVendorReputation)
 
-        // Tool: negotiate_vendor_reputation
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_reputation",
-                mcp.WithDescription("Get the negotiation reputation for a vendor — tracks how flexible or rigid they've been across past deals."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name (e.g. Slack, GitHub, Salesforce)")),
-        ), ns.handleVendorReputation)
+	// Tool: negotiate_rank_flexibility
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_rank_flexibility",
+		mcp.WithDescription("Rank all vendors by flexibility (avg discount percentage descending). Higher = more flexible and discount-friendly."),
+		mcp.WithInteger("limit", mcp.Description("Maximum number of vendors to return (optional, default all)")),
+	), ns.handleRankFlexibility)
 
-        // Tool: negotiate_rank_flexibility
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_rank_flexibility",
-                mcp.WithDescription("Rank all vendors by flexibility (avg discount percentage descending). Higher = more flexible and discount-friendly."),
-                mcp.WithInteger("limit", mcp.Description("Maximum number of vendors to return (optional, default all)")),
-        ), ns.handleRankFlexibility)
+	// Tool 4x: negotiate_get_streak
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_streak",
+		mcp.WithDescription("Get gamification streak info for a user. Returns current streak, longest streak, total deals, and total savings."),
+		mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
+	), ns.handleGetStreak)
 
+	// Tool 4y: negotiate_savings_leaderboard
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_savings_leaderboard",
+		mcp.WithDescription("Get the savings leaderboard. Returns top users ranked by total savings."),
+		mcp.WithInteger("limit", mcp.Description("Maximum number of entries to return (optional, default 10)")),
+	), ns.handleSavingsLeaderboard)
 
-        // Tool 4x: negotiate_get_streak
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_streak",
-                mcp.WithDescription("Get gamification streak info for a user. Returns current streak, longest streak, total deals, and total savings."),
-                mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
-        ), ns.handleGetStreak)
-
-        // Tool 4y: negotiate_savings_leaderboard
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_savings_leaderboard",
-                mcp.WithDescription("Get the savings leaderboard. Returns top users ranked by total savings."),
-                mcp.WithInteger("limit", mcp.Description("Maximum number of entries to return (optional, default 10)")),
-        ), ns.handleSavingsLeaderboard)
-
-        // Tool 4z: negotiate_achievements
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_achievements",
-                mcp.WithDescription("Get all gamification badges and their earned status for a user."),
-                mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
-        ), ns.handleAchievements)
+	// Tool 4z: negotiate_achievements
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_achievements",
+		mcp.WithDescription("Get all gamification badges and their earned status for a user."),
+		mcp.WithString("user_id", mcp.Required(), mcp.Description("User identifier")),
+	), ns.handleAchievements)
 
 	// Tool 5a: negotiate_calculate_roi
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_calculate_roi",
@@ -615,218 +613,215 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
 		mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 6m, 1y, 2y (default: 1y)")),
 	), ns.handlePriceTrends)
-        // Tool 5d: negotiate_win_loss_analysis
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_win_loss_analysis",
-                mcp.WithDescription("Analyze win/loss rates for negotiations. Returns win rate percentage, breakdowns by strategy and vendor, and monthly trends."),
-                mcp.WithString("vendor", mcp.Description("Filter by vendor (optional)")),
-                mcp.WithString("strategy", mcp.Description("Filter by strategy (optional)")),
-                mcp.WithString("period", mcp.Description("Time period: all, 30d, 90d, 1y (default: all)")),
-        ), ns.handleWinLossAnalysis)
+	// Tool 5d: negotiate_win_loss_analysis
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_win_loss_analysis",
+		mcp.WithDescription("Analyze win/loss rates for negotiations. Returns win rate percentage, breakdowns by strategy and vendor, and monthly trends."),
+		mcp.WithString("vendor", mcp.Description("Filter by vendor (optional)")),
+		mcp.WithString("strategy", mcp.Description("Filter by strategy (optional)")),
+		mcp.WithString("period", mcp.Description("Time period: all, 30d, 90d, 1y (default: all)")),
+	), ns.handleWinLossAnalysis)
 
-        // Tool 5e: negotiate_export_data
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_export_data",
-                mcp.WithDescription("Export negotiation data in CSV or JSON format. Supports deals, sessions, analytics, or all data."),
-                mcp.WithString("format", mcp.Description("Export format: csv or json (default: csv)")),
-                mcp.WithString("type", mcp.Description("Data type: deals, sessions, analytics, or all (default: deals)")),
-                mcp.WithString("vendor", mcp.Description("Filter by vendor (optional)")),
-                mcp.WithString("date_from", mcp.Description("Filter by start date (RFC3339, optional)")),
-                mcp.WithString("date_to", mcp.Description("Filter by end date (RFC3339, optional)")),
-        ), ns.handleExportData)
+	// Tool 5e: negotiate_export_data
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_export_data",
+		mcp.WithDescription("Export negotiation data in CSV or JSON format. Supports deals, sessions, analytics, or all data."),
+		mcp.WithString("format", mcp.Description("Export format: csv or json (default: csv)")),
+		mcp.WithString("type", mcp.Description("Data type: deals, sessions, analytics, or all (default: deals)")),
+		mcp.WithString("vendor", mcp.Description("Filter by vendor (optional)")),
+		mcp.WithString("date_from", mcp.Description("Filter by start date (RFC3339, optional)")),
+		mcp.WithString("date_to", mcp.Description("Filter by end date (RFC3339, optional)")),
+	), ns.handleExportData)
 
-        // Tool 5f: negotiate_set_preferences
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_preferences",
-                mcp.WithDescription("Set notification preferences for a channel. Configure enabled notification types, digest frequency, and webhook URL."),
-                mcp.WithString("channel", mcp.Required(), mcp.Description("Notification channel: slack or webhook")),
-                mcp.WithArray("enabled_types", mcp.WithStringItems(), mcp.Description("Enabled notification types (e.g., deal_closed, renewal, alert)")),
-                mcp.WithString("digest_frequency", mcp.Description("Digest frequency: daily, weekly, or never (default: never)")),
-                mcp.WithString("webhook_url", mcp.Description("Webhook URL (required for webhook channel)")),
-        ), ns.handleSetPreferences)
+	// Tool 5f: negotiate_set_preferences
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_preferences",
+		mcp.WithDescription("Set notification preferences for a channel. Configure enabled notification types, digest frequency, and webhook URL."),
+		mcp.WithString("channel", mcp.Required(), mcp.Description("Notification channel: slack or webhook")),
+		mcp.WithArray("enabled_types", mcp.WithStringItems(), mcp.Description("Enabled notification types (e.g., deal_closed, renewal, alert)")),
+		mcp.WithString("digest_frequency", mcp.Description("Digest frequency: daily, weekly, or never (default: never)")),
+		mcp.WithString("webhook_url", mcp.Description("Webhook URL (required for webhook channel)")),
+	), ns.handleSetPreferences)
 
-        // Tool 5g: negotiate_get_preferences
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_preferences",
-                mcp.WithDescription("Get current notification preferences."),
-        ), ns.handleGetPreferences)
+	// Tool 5g: negotiate_get_preferences
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_preferences",
+		mcp.WithDescription("Get current notification preferences."),
+	), ns.handleGetPreferences)
 
-        // Tool 5h: negotiate_send_notification
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_send_notification",
-                mcp.WithDescription("Send a notification via the configured channel. Logs the notification and sends to webhook if configured."),
-                mcp.WithString("type", mcp.Required(), mcp.Description("Notification type (e.g., deal_closed, renewal, alert)")),
-                mcp.WithString("message", mcp.Required(), mcp.Description("Notification message body")),
-                mcp.WithString("priority", mcp.Description("Priority: low, normal, high, urgent (default: normal)")),
-        ), ns.handleSendNotification)
+	// Tool 5h: negotiate_send_notification
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_send_notification",
+		mcp.WithDescription("Send a notification via the configured channel. Logs the notification and sends to webhook if configured."),
+		mcp.WithString("type", mcp.Required(), mcp.Description("Notification type (e.g., deal_closed, renewal, alert)")),
+		mcp.WithString("message", mcp.Required(), mcp.Description("Notification message body")),
+		mcp.WithString("priority", mcp.Description("Priority: low, normal, high, urgent (default: normal)")),
+	), ns.handleSendNotification)
 
-        // Tool 5i: negotiate_budget_dashboard
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_dashboard",
-                mcp.WithDescription("Get budget vs actual spend dashboard. Shows variance, monthly trends, and overspend warnings."),
-                mcp.WithString("period", mcp.Description("Period: monthly, quarterly, yearly (default: monthly)")),
-        ), ns.handleBudgetDashboard)
+	// Tool 5i: negotiate_budget_dashboard
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_dashboard",
+		mcp.WithDescription("Get budget vs actual spend dashboard. Shows variance, monthly trends, and overspend warnings."),
+		mcp.WithString("period", mcp.Description("Period: monthly, quarterly, yearly (default: monthly)")),
+	), ns.handleBudgetDashboard)
 
-        // Tool 5j: negotiate_set_budget
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_budget",
-                mcp.WithDescription("Set or update a budget for a vendor."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithNumber("budget_amount", mcp.Required(), mcp.Description("Budget amount")),
-                mcp.WithString("period_month", mcp.Description("Period month (YYYY-MM, optional)")),
-        ), ns.handleSetBudget)
+	// Tool 5j: negotiate_set_budget
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_budget",
+		mcp.WithDescription("Set or update a budget for a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithNumber("budget_amount", mcp.Required(), mcp.Description("Budget amount")),
+		mcp.WithString("period_month", mcp.Description("Period month (YYYY-MM, optional)")),
+	), ns.handleSetBudget)
 
-        // Tool 5k: negotiate_delete_budget
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_delete_budget",
-                mcp.WithDescription("Delete a budget for a vendor."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-        ), ns.handleDeleteBudget)
+	// Tool 5k: negotiate_delete_budget
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_delete_budget",
+		mcp.WithDescription("Delete a budget for a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+	), ns.handleDeleteBudget)
 
-        // Tool 5m: negotiate_set_monthly_budget
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_monthly_budget",
-                mcp.WithDescription("Set the monthly budget allocation for a vendor."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("month", mcp.Required(), mcp.Description("Month (YYYY-MM)")),
-                mcp.WithNumber("budget_amount", mcp.Required(), mcp.Description("Budget amount")),
-        ), ns.handleSetMonthlyBudget)
+	// Tool 5m: negotiate_set_monthly_budget
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_monthly_budget",
+		mcp.WithDescription("Set the monthly budget allocation for a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("month", mcp.Required(), mcp.Description("Month (YYYY-MM)")),
+		mcp.WithNumber("budget_amount", mcp.Required(), mcp.Description("Budget amount")),
+	), ns.handleSetMonthlyBudget)
 
-        // Tool 5n: negotiate_budget_forecast
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_forecast",
-                mcp.WithDescription("Get budget forecast for a vendor (YTD vs projected annual)."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-        ), ns.handleBudgetForecast)
+	// Tool 5n: negotiate_budget_forecast
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_forecast",
+		mcp.WithDescription("Get budget forecast for a vendor (YTD vs projected annual)."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+	), ns.handleBudgetForecast)
 
-        // Tool 5o: negotiate_set_spending_cap
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_spending_cap",
-                mcp.WithDescription("Set soft and hard spending caps for a vendor."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithNumber("soft_cap", mcp.Required(), mcp.Description("Soft cap amount")),
-                mcp.WithNumber("hard_cap", mcp.Description("Hard cap amount (optional)")),
-                mcp.WithString("period", mcp.Description("Period: monthly, quarterly, yearly (default: monthly)")),
-        ), ns.handleSetSpendingCap)
+	// Tool 5o: negotiate_set_spending_cap
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_spending_cap",
+		mcp.WithDescription("Set soft and hard spending caps for a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithNumber("soft_cap", mcp.Required(), mcp.Description("Soft cap amount")),
+		mcp.WithNumber("hard_cap", mcp.Description("Hard cap amount (optional)")),
+		mcp.WithString("period", mcp.Description("Period: monthly, quarterly, yearly (default: monthly)")),
+	), ns.handleSetSpendingCap)
 
-        // Tool 5p: negotiate_check_spending_caps
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_spending_caps",
-                mcp.WithDescription("Check all spending caps against current spend."),
-        ), ns.handleCheckSpendingCaps)
+	// Tool 5p: negotiate_check_spending_caps
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_spending_caps",
+		mcp.WithDescription("Check all spending caps against current spend."),
+	), ns.handleCheckSpendingCaps)
 
-        // Tool 5q: negotiate_delete_spending_cap
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_delete_spending_cap",
-                mcp.WithDescription("Delete a spending cap for a vendor."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-        ), ns.handleDeleteSpendingCap)
+	// Tool 5q: negotiate_delete_spending_cap
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_delete_spending_cap",
+		mcp.WithDescription("Delete a spending cap for a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+	), ns.handleDeleteSpendingCap)
 
-        // Tool 5r: negotiate_record_realization
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_record_realization",
-                mcp.WithDescription("Record savings realization for a deal."),
-                mcp.WithString("session_id", mcp.Required(), mcp.Description("Negotiation session ID")),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithNumber("projected_amount", mcp.Required(), mcp.Description("Projected savings amount")),
-                mcp.WithNumber("actual_amount", mcp.Required(), mcp.Description("Actual savings amount")),
-                mcp.WithString("period", mcp.Description("Period (default: monthly)")),
-        ), ns.handleRecordRealization)
+	// Tool 5r: negotiate_record_realization
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_record_realization",
+		mcp.WithDescription("Record savings realization for a deal."),
+		mcp.WithString("session_id", mcp.Required(), mcp.Description("Negotiation session ID")),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithNumber("projected_amount", mcp.Required(), mcp.Description("Projected savings amount")),
+		mcp.WithNumber("actual_amount", mcp.Required(), mcp.Description("Actual savings amount")),
+		mcp.WithString("period", mcp.Description("Period (default: monthly)")),
+	), ns.handleRecordRealization)
 
-        // Tool 5s: negotiate_realization_report
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_realization_report",
-                mcp.WithDescription("Get aggregated savings realization report."),
-                mcp.WithString("period", mcp.Description("Period filter (default: 90d)")),
-        ), ns.handleRealizationReport)
+	// Tool 5s: negotiate_realization_report
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_realization_report",
+		mcp.WithDescription("Get aggregated savings realization report."),
+		mcp.WithString("period", mcp.Description("Period filter (default: 90d)")),
+	), ns.handleRealizationReport)
 
-        // Tool 5l: negotiate_vendor_spend
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_spend",
-                mcp.WithDescription("Get vendor spend analytics. Aggregates deal outcomes by vendor with spend percentage, monthly trends, and YoY comparison."),
-                mcp.WithString("vendor", mcp.Description("Filter by vendor name (optional)")),
-                mcp.WithString("period", mcp.Description("Period: 30d, 90d, 1y (default: 1y)")),
-        ), ns.handleVendorSpend)
+	// Tool 5l: negotiate_vendor_spend
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_spend",
+		mcp.WithDescription("Get vendor spend analytics. Aggregates deal outcomes by vendor with spend percentage, monthly trends, and YoY comparison."),
+		mcp.WithString("vendor", mcp.Description("Filter by vendor name (optional)")),
+		mcp.WithString("period", mcp.Description("Period: 30d, 90d, 1y (default: 1y)")),
+	), ns.handleVendorSpend)
 
-        // Tool 5m: negotiate_effectiveness_score
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_effectiveness_score",
-                mcp.WithDescription("Get negotiation effectiveness score (0-100) with component breakdown, trend, and improvement tips."),
-                mcp.WithString("user_id", mcp.Description("User ID for streak info (optional)")),
-                mcp.WithString("period", mcp.Description("Period: 30d, 90d, 1y (default: 90d)")),
-        ), ns.handleEffectivenessScore)
-        // Tool 5n: negotiate_enable_price_alert
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_enable_price_alert",
-                mcp.WithDescription("Enable a price drop alert for a vendor/SKU. Records baseline price and monitors for drops exceeding the threshold."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
-                mcp.WithNumber("threshold_pct", mcp.Description("Price drop percentage to trigger alert (default: 10)")),
-                mcp.WithString("channel", mcp.Description("Notification channel (default: webhook)")),
-        ), ns.handleEnablePriceAlert)
+	// Tool 5m: negotiate_effectiveness_score
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_effectiveness_score",
+		mcp.WithDescription("Get negotiation effectiveness score (0-100) with component breakdown, trend, and improvement tips."),
+		mcp.WithString("user_id", mcp.Description("User ID for streak info (optional)")),
+		mcp.WithString("period", mcp.Description("Period: 30d, 90d, 1y (default: 90d)")),
+	), ns.handleEffectivenessScore)
+	// Tool 5n: negotiate_enable_price_alert
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_enable_price_alert",
+		mcp.WithDescription("Enable a price drop alert for a vendor/SKU. Records baseline price and monitors for drops exceeding the threshold."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+		mcp.WithNumber("threshold_pct", mcp.Description("Price drop percentage to trigger alert (default: 10)")),
+		mcp.WithString("channel", mcp.Description("Notification channel (default: webhook)")),
+	), ns.handleEnablePriceAlert)
 
-        // Tool 5o: negotiate_check_price_alerts
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_price_alerts",
-                mcp.WithDescription("Check all enabled price alerts against current prices. Returns results with drop percentages and threshold status."),
-        ), ns.handleCheckPriceAlerts)
+	// Tool 5o: negotiate_check_price_alerts
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_price_alerts",
+		mcp.WithDescription("Check all enabled price alerts against current prices. Returns results with drop percentages and threshold status."),
+	), ns.handleCheckPriceAlerts)
 
-        // Tool 5p: negotiate_disable_price_alert
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_disable_price_alert",
-                mcp.WithDescription("Disable a price alert for a vendor/SKU."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
-        ), ns.handleDisablePriceAlert)
+	// Tool 5p: negotiate_disable_price_alert
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_disable_price_alert",
+		mcp.WithDescription("Disable a price alert for a vendor/SKU."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+	), ns.handleDisablePriceAlert)
 
-        // Tool 5q: negotiate_check_renewal_reminders
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_renewal_reminders",
-                mcp.WithDescription("Check upcoming contract renewals and categorize by urgency: critical (<7d), soon (<30d), upcoming (<60d)."),
-        ), ns.handleCheckRenewalReminders)
+	// Tool 5q: negotiate_check_renewal_reminders
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_renewal_reminders",
+		mcp.WithDescription("Check upcoming contract renewals and categorize by urgency: critical (<7d), soon (<30d), upcoming (<60d)."),
+	), ns.handleCheckRenewalReminders)
 
-        // Tool 5r: negotiate_check_budget_alerts
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_budget_alerts",
-                mcp.WithDescription("Check all vendor budgets against actual spend. Flags info (>80%), warning (>90%), and critical (>100%) levels."),
-        ), ns.handleCheckBudgetAlerts)
+	// Tool 5r: negotiate_check_budget_alerts
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_check_budget_alerts",
+		mcp.WithDescription("Check all vendor budgets against actual spend. Flags info (>80%), warning (>90%), and critical (>100%) levels."),
+	), ns.handleCheckBudgetAlerts)
 
-        // Tool 5s: negotiate_budget_alert_history
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_alert_history",
-                mcp.WithDescription("Get budget alert history for a vendor."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithInteger("limit", mcp.Description("Max records (default: 10)")),
-        ), ns.handleBudgetAlertHistory)
-        // Tool: negotiate_build_report
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_build_report",
-                mcp.WithDescription("Build a custom report from analytics data sources. Supports sections: savings, vendor_breakdown, win_loss, benchmarks, budget, trends."),
-                mcp.WithArray("sections", mcp.Required(), mcp.WithStringItems(), mcp.Description("Report sections to include: savings, vendor_breakdown, win_loss, benchmarks, budget, trends")),
-                mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y, all (default: all)")),
-                mcp.WithString("vendor", mcp.Description("Filter by vendor name (optional)")),
-        ), ns.handleBuildReport)
+	// Tool 5s: negotiate_budget_alert_history
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_alert_history",
+		mcp.WithDescription("Get budget alert history for a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithInteger("limit", mcp.Description("Max records (default: 10)")),
+	), ns.handleBudgetAlertHistory)
+	// Tool: negotiate_build_report
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_build_report",
+		mcp.WithDescription("Build a custom report from analytics data sources. Supports sections: savings, vendor_breakdown, win_loss, benchmarks, budget, trends."),
+		mcp.WithArray("sections", mcp.Required(), mcp.WithStringItems(), mcp.Description("Report sections to include: savings, vendor_breakdown, win_loss, benchmarks, budget, trends")),
+		mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y, all (default: all)")),
+		mcp.WithString("vendor", mcp.Description("Filter by vendor name (optional)")),
+	), ns.handleBuildReport)
 
-        // Tool: negotiate_pricing_index
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_pricing_index",
-                mcp.WithDescription("Get competitive pricing index for a category or vendor. Returns average prices, ranges, and vendor breakdown."),
-                mcp.WithString("category", mcp.Description("Category filter (e.g., ai, Communication) (optional)")),
-                mcp.WithString("vendor", mcp.Description("Vendor filter (optional)")),
-        ), ns.handlePricingIndex)
+	// Tool: negotiate_pricing_index
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_pricing_index",
+		mcp.WithDescription("Get competitive pricing index for a category or vendor. Returns average prices, ranges, and vendor breakdown."),
+		mcp.WithString("category", mcp.Description("Category filter (e.g., ai, Communication) (optional)")),
+		mcp.WithString("vendor", mcp.Description("Vendor filter (optional)")),
+	), ns.handlePricingIndex)
 
-        // Tool: negotiate_price_chart
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_price_chart",
-                mcp.WithDescription("Get price history chart data for a vendor. Returns monthly labels, datasets (list_price, negotiated), and summary stats."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
-                mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y, 2y (default: 1y)")),
-        ), ns.handlePriceChart)
+	// Tool: negotiate_price_chart
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_price_chart",
+		mcp.WithDescription("Get price history chart data for a vendor. Returns monthly labels, datasets (list_price, negotiated), and summary stats."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("sku", mcp.Description("Product SKU (optional)")),
+		mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y, 2y (default: 1y)")),
+	), ns.handlePriceChart)
 
+	// Tool: negotiate_list_contract_templates
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_contract_templates",
+		mcp.WithDescription("List available contract templates, optionally filtered by category."),
+		mcp.WithString("category", mcp.Description("Category filter (optional)")),
+	), ns.handleListContractTemplates)
 
-        
+	// Tool: negotiate_generate_contract
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_contract",
+		mcp.WithDescription("Generate a contract from a template by filling in vendor name and custom parameters."),
+		mcp.WithString("template_id", mcp.Required(), mcp.Description("Template ID")),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithObject("params", mcp.Description("Custom parameters as key-value object (optional)")),
+	), ns.handleGenerateContract)
 
-        // Tool: negotiate_list_contract_templates
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_contract_templates",
-                mcp.WithDescription("List available contract templates, optionally filtered by category."),
-                mcp.WithString("category", mcp.Description("Category filter (optional)")),
-        ), ns.handleListContractTemplates)
+	// Tool: negotiate_contract_risk
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_contract_risk",
+		mcp.WithDescription("Analyze contract text for risky clauses and return a risk report."),
+		mcp.WithString("contract_text", mcp.Required(), mcp.Description("Full contract text to analyze")),
+	), ns.handleContractRisk)
 
-        // Tool: negotiate_generate_contract
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_contract",
-                mcp.WithDescription("Generate a contract from a template by filling in vendor name and custom parameters."),
-                mcp.WithString("template_id", mcp.Required(), mcp.Description("Template ID")),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithObject("params", mcp.Description("Custom parameters as key-value object (optional)")),
-        ), ns.handleGenerateContract)
-
-        // Tool: negotiate_contract_risk
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_contract_risk",
-                mcp.WithDescription("Analyze contract text for risky clauses and return a risk report."),
-                mcp.WithString("contract_text", mcp.Required(), mcp.Description("Full contract text to analyze")),
-        ), ns.handleContractRisk)
-
-        // Tool: negotiate_vendor_scorecard
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_scorecard",
-                mcp.WithDescription("Get a vendor scorecard with pricing, reliability, support, and relationship scores."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("period", mcp.Description("Time period: 1y, 90d, 30d (default: 1y)")),
-        ), ns.handleVendorScorecard)
+	// Tool: negotiate_vendor_scorecard
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_scorecard",
+		mcp.WithDescription("Get a vendor scorecard with pricing, reliability, support, and relationship scores."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("period", mcp.Description("Time period: 1y, 90d, 30d (default: 1y)")),
+	), ns.handleVendorScorecard)
 
 	// Tool: negotiate_share_strategy
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_share_strategy",
@@ -892,40 +887,40 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("List all pending approval requests."),
 	), ns.handlePendingApprovals)
 
-        // Tool: negotiate_tco
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_tco",
-                mcp.WithDescription("Calculate Total Cost of Ownership for a SaaS vendor product. Returns per-unit cost, annual subscription, 1y/3y TCO, cost per user per month, market comparison, and flagged hidden costs."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
-                mcp.WithInteger("seats", mcp.Description("Number of seats (default 50)")),
-                mcp.WithInteger("term_months", mcp.Description("Contract term in months (default 12)")),
-                mcp.WithNumber("implementation_costs", mcp.Description("One-time implementation costs (default 0)")),
-                mcp.WithNumber("training_costs", mcp.Description("Training costs (default 0)")),
-                mcp.WithNumber("support_costs", mcp.Description("Support costs (default 0)")),
-        ), ns.handleTCO)
+	// Tool: negotiate_tco
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_tco",
+		mcp.WithDescription("Calculate Total Cost of Ownership for a SaaS vendor product. Returns per-unit cost, annual subscription, 1y/3y TCO, cost per user per month, market comparison, and flagged hidden costs."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
+		mcp.WithInteger("seats", mcp.Description("Number of seats (default 50)")),
+		mcp.WithInteger("term_months", mcp.Description("Contract term in months (default 12)")),
+		mcp.WithNumber("implementation_costs", mcp.Description("One-time implementation costs (default 0)")),
+		mcp.WithNumber("training_costs", mcp.Description("Training costs (default 0)")),
+		mcp.WithNumber("support_costs", mcp.Description("Support costs (default 0)")),
+	), ns.handleTCO)
 
-        // Tool: negotiate_import_data
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_import_data",
-                mcp.WithDescription("Import deals or pricing data from JSON. Supports validate mode (dry-run preview) and import mode (inserts records)."),
-                mcp.WithString("type", mcp.Required(), mcp.Description("Data type: deals or pricing")),
-                mcp.WithString("data", mcp.Required(), mcp.Description("JSON array of records to import")),
-                mcp.WithString("mode", mcp.Description("Import mode: validate or import (default import)")),
-                mcp.WithBoolean("dry_run", mcp.Description("If true, only validates without inserting (default false)")),
-        ), ns.handleImportData)
+	// Tool: negotiate_import_data
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_import_data",
+		mcp.WithDescription("Import deals or pricing data from JSON. Supports validate mode (dry-run preview) and import mode (inserts records)."),
+		mcp.WithString("type", mcp.Required(), mcp.Description("Data type: deals or pricing")),
+		mcp.WithString("data", mcp.Required(), mcp.Description("JSON array of records to import")),
+		mcp.WithString("mode", mcp.Description("Import mode: validate or import (default import)")),
+		mcp.WithBoolean("dry_run", mcp.Description("If true, only validates without inserting (default false)")),
+	), ns.handleImportData)
 
-        // Tool: negotiate_set_allocation
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_allocation",
-                mcp.WithDescription("Set a cost allocation percentage for a vendor to a department."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("department", mcp.Required(), mcp.Description("Department name")),
-                mcp.WithNumber("allocation_pct", mcp.Required(), mcp.Description("Allocation percentage (0-100)")),
-        ), ns.handleSetAllocation)
+	// Tool: negotiate_set_allocation
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_allocation",
+		mcp.WithDescription("Set a cost allocation percentage for a vendor to a department."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("department", mcp.Required(), mcp.Description("Department name")),
+		mcp.WithNumber("allocation_pct", mcp.Required(), mcp.Description("Allocation percentage (0-100)")),
+	), ns.handleSetAllocation)
 
-        // Tool: negotiate_cost_allocation_report
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_cost_allocation_report",
-                mcp.WithDescription("Generate a cost allocation report showing spend distribution across departments by vendor."),
-                mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y (default 90d)")),
-        ), ns.handleCostAllocationReport)
+	// Tool: negotiate_cost_allocation_report
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_cost_allocation_report",
+		mcp.WithDescription("Generate a cost allocation report showing spend distribution across departments by vendor."),
+		mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y (default 90d)")),
+	), ns.handleCostAllocationReport)
 
 	// Tool: negotiate_alert_history
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_alert_history",
@@ -962,35 +957,35 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithInteger("limit", mcp.Description("Max results (default 20)")),
 	), ns.handleCommunicationHistory)
 
-        // Tool: negotiate_analyze_offer
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_analyze_offer",
-                mcp.WithDescription("Analyze a time-limited vendor offer. Returns savings, urgency, recommendation, and price comparison."),
-                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
-                mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
-                mcp.WithNumber("offer_price", mcp.Required(), mcp.Description("Offered price")),
-                mcp.WithString("expires_at", mcp.Required(), mcp.Description("Offer expiration (RFC3339)")),
-                mcp.WithNumber("current_price", mcp.Description("Current price per unit (optional)")),
-                mcp.WithNumber("current_spend", mcp.Description("Current total spend (optional)")),
-        ), ns.handleAnalyzeOffer)
+	// Tool: negotiate_analyze_offer
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_analyze_offer",
+		mcp.WithDescription("Analyze a time-limited vendor offer. Returns savings, urgency, recommendation, and price comparison."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
+		mcp.WithNumber("offer_price", mcp.Required(), mcp.Description("Offered price")),
+		mcp.WithString("expires_at", mcp.Required(), mcp.Description("Offer expiration (RFC3339)")),
+		mcp.WithNumber("current_price", mcp.Description("Current price per unit (optional)")),
+		mcp.WithNumber("current_spend", mcp.Description("Current total spend (optional)")),
+	), ns.handleAnalyzeOffer)
 
-        // Tool: negotiate_refresh_pricing
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_refresh_pricing",
-                mcp.WithDescription("Refresh pricing snapshots for vendors with ±3% variation. Creates new trend data points."),
-                mcp.WithArray("vendors", mcp.WithStringItems(), mcp.Description("Vendor list (empty = all)")),
-                mcp.WithString("source", mcp.Description("Data source label (default: seed)")),
-        ), ns.handleRefreshPricing)
+	// Tool: negotiate_refresh_pricing
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_refresh_pricing",
+		mcp.WithDescription("Refresh pricing snapshots for vendors with ±3% variation. Creates new trend data points."),
+		mcp.WithArray("vendors", mcp.WithStringItems(), mcp.Description("Vendor list (empty = all)")),
+		mcp.WithString("source", mcp.Description("Data source label (default: seed)")),
+	), ns.handleRefreshPricing)
 
-        // Tool: negotiate_rate_limit_dashboard
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_rate_limit_dashboard",
-                mcp.WithDescription("Get current rate limit usage status — requests this minute, hour, day, and status color."),
-        ), ns.handleRateLimitDashboard)
+	// Tool: negotiate_rate_limit_dashboard
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_rate_limit_dashboard",
+		mcp.WithDescription("Get current rate limit usage status — requests this minute, hour, day, and status color."),
+	), ns.handleRateLimitDashboard)
 
-        // Tool: negotiate_log_api_request
-        ns.mcpServer.AddTool(mcp.NewTool("negotiate_log_api_request",
-                mcp.WithDescription("Log an API request for rate limit tracking."),
-                mcp.WithString("api_key_id", mcp.Required(), mcp.Description("API key identifier")),
-                mcp.WithString("endpoint", mcp.Required(), mcp.Description("API endpoint called")),
-        ), ns.handleLogAPIRequest)
+	// Tool: negotiate_log_api_request
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_log_api_request",
+		mcp.WithDescription("Log an API request for rate limit tracking."),
+		mcp.WithString("api_key_id", mcp.Required(), mcp.Description("API key identifier")),
+		mcp.WithString("endpoint", mcp.Required(), mcp.Description("API endpoint called")),
+	), ns.handleLogAPIRequest)
 
 	// Tool: negotiate_api_docs
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_api_docs",
@@ -1097,6 +1092,27 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithNumber("budget", mcp.Required(), mcp.Description("Budget amount")),
 		mcp.WithInteger("rounds", mcp.Description("Number of simulation rounds (1-10, default 3)")),
 	), ns.handleSimulate)
+
+	// Tool: negotiate_save_report
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_save_report",
+		mcp.WithDescription("Save an industry research report."),
+		mcp.WithString("title", mcp.Required(), mcp.Description("Report title")),
+		mcp.WithString("category", mcp.Required(), mcp.Description("Report category")),
+		mcp.WithString("content", mcp.Required(), mcp.Description("Report content")),
+		mcp.WithString("source", mcp.Required(), mcp.Description("Source URL or name")),
+	), ns.handleSaveReport)
+
+	// Tool: negotiate_list_reports
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_reports",
+		mcp.WithDescription("List saved industry reports, optionally filtered by category."),
+		mcp.WithString("category", mcp.Description("Optional category filter")),
+	), ns.handleListReports)
+
+	// Tool: negotiate_get_report
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_get_report",
+		mcp.WithDescription("Get details of a saved industry report by ID."),
+		mcp.WithInteger("report_id", mcp.Required(), mcp.Description("Report ID")),
+	), ns.handleGetReport)
 }
 
 // ─── Tool Handlers ───
@@ -1117,9 +1133,9 @@ func (ns *NegotiationServer) handleGenerateAPIKey(ctx context.Context, req mcp.C
 
 	ns.logger.Info("api key generated", "owner", owner)
 	resp := map[string]any{
-		"api_key":    key,
-		"owner":      owner,
-		"note":       "This key will not be shown again. Store it securely.",
+		"api_key":     key,
+		"owner":       owner,
+		"note":        "This key will not be shown again. Store it securely.",
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -1325,7 +1341,7 @@ func (ns *NegotiationServer) handleRunNegotiation(ctx context.Context, req mcp.C
 		ns.logger.Error("failed to save rounds", "error", err.Error())
 	}
 
-		if session.Outcome == "accepted" {
+	if session.Outcome == "accepted" {
 		deal := &history.DealOutcome{
 			Vendor: session.Vendor, SKU: session.SKU, ListPrice: session.ListPrice,
 			FinalPrice: session.CurrentOffer, DiscountPct: result.TotalDiscount,
@@ -1345,29 +1361,29 @@ func (ns *NegotiationServer) handleRunNegotiation(ctx context.Context, req mcp.C
 	}
 	if err := ns.healthEng.UpdateReputation(ctx, session.Vendor, discountPct, succeeded); err != nil {
 
-        // Record gamification data after successful negotiation
-        if succeeded && ns.gamificationEng != nil {
-                userID := req.GetString("user_id", "anonymous")
-                savings := session.ListPrice - session.CurrentOffer
-                if savings < 0 {
-                        savings = 0
-                }
-                if err := ns.gamificationEng.RecordNegotiation(ctx, userID, savings); err != nil {
-                        ns.logger.Error("failed to record gamification", "user_id", userID, "error", err.Error())
-                } else {
-                        streak, _ := ns.gamificationEng.GetStreak(ctx, userID)
-                        awarded, bErr := ns.gamificationEng.CheckAndAwardBadges(ctx, userID, streak)
-                        if bErr != nil {
-                                ns.logger.Error("failed to check badges", "user_id", userID, "error", bErr.Error())
-                        } else if len(awarded) > 0 {
-                                var badgeIDs []string
-                                for _, b := range awarded {
-                                        badgeIDs = append(badgeIDs, b.ID)
-                                }
-                                ns.logger.Info("badges awarded", "user_id", userID, "badges", badgeIDs)
-                        }
-                }
-        }
+		// Record gamification data after successful negotiation
+		if succeeded && ns.gamificationEng != nil {
+			userID := req.GetString("user_id", "anonymous")
+			savings := session.ListPrice - session.CurrentOffer
+			if savings < 0 {
+				savings = 0
+			}
+			if err := ns.gamificationEng.RecordNegotiation(ctx, userID, savings); err != nil {
+				ns.logger.Error("failed to record gamification", "user_id", userID, "error", err.Error())
+			} else {
+				streak, _ := ns.gamificationEng.GetStreak(ctx, userID)
+				awarded, bErr := ns.gamificationEng.CheckAndAwardBadges(ctx, userID, streak)
+				if bErr != nil {
+					ns.logger.Error("failed to check badges", "user_id", userID, "error", bErr.Error())
+				} else if len(awarded) > 0 {
+					var badgeIDs []string
+					for _, b := range awarded {
+						badgeIDs = append(badgeIDs, b.ID)
+					}
+					ns.logger.Info("badges awarded", "user_id", userID, "badges", badgeIDs)
+				}
+			}
+		}
 
 		ns.logger.Error("failed to update vendor reputation", "vendor", session.Vendor, "error", err.Error())
 	}
@@ -1467,15 +1483,15 @@ func (ns *NegotiationServer) handleStrategies(ctx context.Context, req mcp.CallT
 }
 
 func (ns *NegotiationServer) handleCulturalProfiles(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
-        profiles := negotiation.ListCulturalProfiles()
+	start := time.Now()
+	profiles := negotiation.ListCulturalProfiles()
 
-        resp := map[string]any{
-                "profiles":    profiles,
-                "count":       len(profiles),
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"profiles":    profiles,
+		"count":       len(profiles),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleDiscoverOpportunities(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -1522,27 +1538,27 @@ func (ns *NegotiationServer) handleDiscoverOpportunities(ctx context.Context, re
 
 // modelTaskTypes maps AI model SKUs to their compatible task types.
 var modelTaskTypes = map[string][]string{
-	"gpt-4o":              {"chat", "vision", "code"},
-	"gpt-4o-mini":         {"chat", "code"},
-	"gpt-4o-audio":        {"audio"},
-	"o1":                  {"reasoning", "code"},
-	"o1-mini":             {"reasoning", "code"},
-	"dall-e-3":            {"image_generation"},
-	"whisper-1":           {"audio"},
-	"tts-1":               {"audio"},
-	"claude-3.5-sonnet":   {"chat", "vision", "code"},
-	"claude-3-opus":       {"chat", "reasoning", "code"},
-	"claude-3-haiku":      {"chat", "code"},
-	"gemini-2.5-flash":    {"chat", "vision", "code"},
-	"gemini-2.5-pro":      {"chat", "reasoning", "vision", "code"},
-	"gemini-2.0-flash":    {"chat", "vision", "code"},
-	"deepseek-v4":         {"chat", "reasoning", "code"},
-	"deepseek-r1":         {"reasoning", "code"},
-	"deepseek-chat":       {"chat", "code"},
-	"mistral-large":       {"chat", "code"},
-	"mistral-small":       {"chat", "code"},
-	"command-r-plus":      {"chat", "code"},
-	"command-r":           {"chat", "code"},
+	"gpt-4o":            {"chat", "vision", "code"},
+	"gpt-4o-mini":       {"chat", "code"},
+	"gpt-4o-audio":      {"audio"},
+	"o1":                {"reasoning", "code"},
+	"o1-mini":           {"reasoning", "code"},
+	"dall-e-3":          {"image_generation"},
+	"whisper-1":         {"audio"},
+	"tts-1":             {"audio"},
+	"claude-3.5-sonnet": {"chat", "vision", "code"},
+	"claude-3-opus":     {"chat", "reasoning", "code"},
+	"claude-3-haiku":    {"chat", "code"},
+	"gemini-2.5-flash":  {"chat", "vision", "code"},
+	"gemini-2.5-pro":    {"chat", "reasoning", "vision", "code"},
+	"gemini-2.0-flash":  {"chat", "vision", "code"},
+	"deepseek-v4":       {"chat", "reasoning", "code"},
+	"deepseek-r1":       {"reasoning", "code"},
+	"deepseek-chat":     {"chat", "code"},
+	"mistral-large":     {"chat", "code"},
+	"mistral-small":     {"chat", "code"},
+	"command-r-plus":    {"chat", "code"},
+	"command-r":         {"chat", "code"},
 }
 
 // ─── Find Cheapest Model Handler ───
@@ -1625,7 +1641,6 @@ func (ns *NegotiationServer) handleFindCheapestModel(ctx context.Context, req mc
 	return ns.jsonResult(resp)
 }
 
-
 // ─── Vendor Reputation Handlers ───
 
 func (ns *NegotiationServer) handleVendorReputation(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -1642,13 +1657,13 @@ func (ns *NegotiationServer) handleVendorReputation(ctx context.Context, req mcp
 	}
 
 	resp := map[string]any{
-		"vendor":              rep.Vendor,
-		"deal_count":          rep.DealCount,
-		"avg_discount_pct":    rep.AvgDiscountPct,
-		"max_discount_pct":    rep.MaxDiscountPct,
-		"negotiability":       rep.Negotiability,
-		"win_rate":            rep.WinRate,
-		"duration_ms":         time.Since(start).Milliseconds(),
+		"vendor":           rep.Vendor,
+		"deal_count":       rep.DealCount,
+		"avg_discount_pct": rep.AvgDiscountPct,
+		"max_discount_pct": rep.MaxDiscountPct,
+		"negotiability":    rep.Negotiability,
+		"win_rate":         rep.WinRate,
+		"duration_ms":      time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -1673,7 +1688,6 @@ func (ns *NegotiationServer) handleRankFlexibility(ctx context.Context, req mcp.
 	}
 	return ns.jsonResult(resp)
 }
-
 
 func (ns *NegotiationServer) jsonResult(data map[string]any) (*mcp.CallToolResult, error) {
 	b, err := json.Marshal(data)
@@ -2238,13 +2252,13 @@ func (ns *NegotiationServer) handleStrategyRecommend(ctx context.Context, req mc
 	}
 
 	resp := map[string]any{
-		"vendor":                rec.Vendor,
-		"recommended_strategy":  rec.RecommendedStrategy,
-		"confidence":            rec.Confidence,
-		"avg_discount_pct":      rec.AvgDiscount,
-		"total_deals":           rec.TotalDeals,
-		"breakdown":             rec.Breakdown,
-		"duration_ms":           time.Since(start).Milliseconds(),
+		"vendor":               rec.Vendor,
+		"recommended_strategy": rec.RecommendedStrategy,
+		"confidence":           rec.Confidence,
+		"avg_discount_pct":     rec.AvgDiscount,
+		"total_deals":          rec.TotalDeals,
+		"breakdown":            rec.Breakdown,
+		"duration_ms":          time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -2271,120 +2285,120 @@ func (ns *NegotiationServer) handleLearningInsights(ctx context.Context, req mcp
 // ─── Failure Autopsy Handlers ───
 
 func (ns *NegotiationServer) handleFailureAutopsy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
-        sessionID, _ := req.RequireString("session_id")
+	start := time.Now()
+	sessionID, _ := req.RequireString("session_id")
 
-        ns.logger.Debug("failure_autopsy called", "session_id", sessionID)
+	ns.logger.Debug("failure_autopsy called", "session_id", sessionID)
 
-        if ns.learningEng == nil {
-                return mcp.NewToolResultError("Learning engine is not available"), nil
-        }
+	if ns.learningEng == nil {
+		return mcp.NewToolResultError("Learning engine is not available"), nil
+	}
 
-        // Load session from history store to build autopsy
-        sessRec, err := ns.historyStore.GetSession(ctx, sessionID)
-        if err != nil {
-                return mcp.NewToolResultError(fmt.Sprintf("Session not found: %s", err.Error())), nil
-        }
+	// Load session from history store to build autopsy
+	sessRec, err := ns.historyStore.GetSession(ctx, sessionID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Session not found: %s", err.Error())), nil
+	}
 
-        // Derive failure reason from session outcome
-        failureReason := deriveFailureReason(sessRec.Outcome, sessRec.Budget, sessRec.CurrentOffer, sessRec.ListPrice)
-        gap := sessRec.ListPrice - sessRec.CurrentOffer
-        if gap < 0 {
-                gap = 0
-        }
+	// Derive failure reason from session outcome
+	failureReason := deriveFailureReason(sessRec.Outcome, sessRec.Budget, sessRec.CurrentOffer, sessRec.ListPrice)
+	gap := sessRec.ListPrice - sessRec.CurrentOffer
+	if gap < 0 {
+		gap = 0
+	}
 
-        autopsy := learning.Autopsy{
-                SessionID:     sessionID,
-                Vendor:        sessRec.Vendor,
-                SKU:           sessRec.SKU,
-                Strategy:      sessRec.Strategy,
-                FailureReason: failureReason,
-                FinalOffer:    sessRec.CurrentOffer,
-                VendorBest:    sessRec.CurrentOffer,
-                Gap:           gap,
-                TacticUsed:    sessRec.Strategy,
-        }
+	autopsy := learning.Autopsy{
+		SessionID:     sessionID,
+		Vendor:        sessRec.Vendor,
+		SKU:           sessRec.SKU,
+		Strategy:      sessRec.Strategy,
+		FailureReason: failureReason,
+		FinalOffer:    sessRec.CurrentOffer,
+		VendorBest:    sessRec.CurrentOffer,
+		Gap:           gap,
+		TacticUsed:    sessRec.Strategy,
+	}
 
-        resp := map[string]any{
-                "session_id":     autopsy.SessionID,
-                "vendor":         autopsy.Vendor,
-                "sku":            autopsy.SKU,
-                "strategy":       autopsy.Strategy,
-                "failure_reason": autopsy.FailureReason,
-                "final_offer":    autopsy.FinalOffer,
-                "vendor_best":    autopsy.VendorBest,
-                "gap":            autopsy.Gap,
-                "tactic_used":    autopsy.TacticUsed,
-                "duration_ms":    time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"session_id":     autopsy.SessionID,
+		"vendor":         autopsy.Vendor,
+		"sku":            autopsy.SKU,
+		"strategy":       autopsy.Strategy,
+		"failure_reason": autopsy.FailureReason,
+		"final_offer":    autopsy.FinalOffer,
+		"vendor_best":    autopsy.VendorBest,
+		"gap":            autopsy.Gap,
+		"tactic_used":    autopsy.TacticUsed,
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleFailurePatterns(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
-        vendor, _ := req.RequireString("vendor")
+	start := time.Now()
+	vendor, _ := req.RequireString("vendor")
 
-        ns.logger.Debug("failure_patterns called", "vendor", vendor)
+	ns.logger.Debug("failure_patterns called", "vendor", vendor)
 
-        if ns.learningEng == nil {
-                return mcp.NewToolResultError("Learning engine is not available"), nil
-        }
+	if ns.learningEng == nil {
+		return mcp.NewToolResultError("Learning engine is not available"), nil
+	}
 
-        patterns, err := ns.learningEng.AnalyzeFailures(ctx, vendor)
-        if err != nil {
-                ns.logger.Warn("failure_patterns failed", "vendor", vendor, "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Failure analysis failed: %s", err.Error())), nil
-        }
+	patterns, err := ns.learningEng.AnalyzeFailures(ctx, vendor)
+	if err != nil {
+		ns.logger.Warn("failure_patterns failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Failure analysis failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "vendor":   vendor,
-                "patterns": patterns,
-                "count":    len(patterns),
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"vendor":      vendor,
+		"patterns":    patterns,
+		"count":       len(patterns),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleCommonFailures(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
-        limit := int(req.GetInt("limit", 10))
+	start := time.Now()
+	limit := int(req.GetInt("limit", 10))
 
-        ns.logger.Debug("common_failures called", "limit", limit)
+	ns.logger.Debug("common_failures called", "limit", limit)
 
-        if ns.learningEng == nil {
-                return mcp.NewToolResultError("Learning engine is not available"), nil
-        }
+	if ns.learningEng == nil {
+		return mcp.NewToolResultError("Learning engine is not available"), nil
+	}
 
-        patterns, err := ns.learningEng.CommonFailureModes(ctx, limit)
-        if err != nil {
-                ns.logger.Warn("common_failures failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Common failures query failed: %s", err.Error())), nil
-        }
+	patterns, err := ns.learningEng.CommonFailureModes(ctx, limit)
+	if err != nil {
+		ns.logger.Warn("common_failures failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Common failures query failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "patterns":   patterns,
-                "count":      len(patterns),
-                "limit":      limit,
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"patterns":    patterns,
+		"count":       len(patterns),
+		"limit":       limit,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // deriveFailureReason maps negotiation outcome + session state to a failure reason string.
 func deriveFailureReason(outcome string, budget float64, currentOffer float64, listPrice float64) string {
-        switch outcome {
-        case "walked_away":
-                return "vendor_refused"
-        case "rejected":
-                if budget > 0 && currentOffer > budget {
-                        return "budget_exceeded"
-                }
-                return "price_too_high"
-        case "timeout":
-                return "timeout"
-        default:
-                return "counter_too_low"
-        }
+	switch outcome {
+	case "walked_away":
+		return "vendor_refused"
+	case "rejected":
+		if budget > 0 && currentOffer > budget {
+			return "budget_exceeded"
+		}
+		return "price_too_high"
+	case "timeout":
+		return "timeout"
+	default:
+		return "counter_too_low"
+	}
 }
 
 // ─── Marketplace Handlers ───
@@ -2578,15 +2592,15 @@ func (ns *NegotiationServer) handleVendorHealth(ctx context.Context, req mcp.Cal
 	}
 
 	resp := map[string]any{
-		"vendor":     leverage.Vendor,
+		"vendor": leverage.Vendor,
 		"health": map[string]any{
 			"score":        leverage.Health.Score,
 			"category":     leverage.Health.Category,
 			"last_updated": leverage.Health.LastUpdated.Format(time.RFC3339),
 			"signals":      leverage.Health.Signals,
 		},
-		"leverage":   leverage.Leverage,
-		"suggestion": leverage.Suggestion,
+		"leverage":    leverage.Leverage,
+		"suggestion":  leverage.Suggestion,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -2615,14 +2629,14 @@ func (ns *NegotiationServer) handleRecordSignal(ctx context.Context, req mcp.Cal
 	}
 
 	resp := map[string]any{
-		"vendor":     leverage.Vendor,
-		"recorded":   true,
+		"vendor":   leverage.Vendor,
+		"recorded": true,
 		"health": map[string]any{
 			"score":    leverage.Health.Score,
 			"category": leverage.Health.Category,
 		},
-		"leverage":   leverage.Leverage,
-		"suggestion": leverage.Suggestion,
+		"leverage":    leverage.Leverage,
+		"suggestion":  leverage.Suggestion,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -2644,13 +2658,12 @@ func (ns *NegotiationServer) handleHealthOverview(ctx context.Context, req mcp.C
 	}
 
 	resp := map[string]any{
-		"vendors":     vendors,
+		"vendors":      vendors,
 		"vendor_count": len(vendors),
 		"duration_ms":  time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
-
 
 // ─── SLA Handlers ───
 
@@ -2673,15 +2686,15 @@ func (ns *NegotiationServer) handleAddSLA(ctx context.Context, req mcp.CallToolR
 	}
 
 	resp := map[string]any{
-		"sla_id":          contract.ID,
-		"vendor":          contract.Vendor,
-		"service":         contract.Service,
-		"uptime_pct":      contract.UptimePct,
-		"credit_pct":      contract.CreditPct,
-		"max_credit_pct":  contract.MaxCreditPct,
-		"monthly_spend":   contract.MonthlySpend,
-		"status":          contract.Status,
-		"duration_ms":     time.Since(start).Milliseconds(),
+		"sla_id":         contract.ID,
+		"vendor":         contract.Vendor,
+		"service":        contract.Service,
+		"uptime_pct":     contract.UptimePct,
+		"credit_pct":     contract.CreditPct,
+		"max_credit_pct": contract.MaxCreditPct,
+		"monthly_spend":  contract.MonthlySpend,
+		"status":         contract.Status,
+		"duration_ms":    time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -2795,22 +2808,22 @@ func (ns *NegotiationServer) handleAnalyzeQuote(ctx context.Context, req mcp.Cal
 
 	resp := map[string]any{
 		"quote": map[string]any{
-			"vendor":          analysis.Quote.Vendor,
-			"sku":             analysis.Quote.SKU,
-			"description":     analysis.Quote.Description,
-			"seats":           analysis.Quote.Seats,
-			"term_months":     analysis.Quote.TermMonths,
-			"price_per_unit":  analysis.Quote.PricePerUnit,
-			"total_price":     analysis.Quote.TotalPrice,
-			"list_price":      analysis.Quote.ListPrice,
+			"vendor":           analysis.Quote.Vendor,
+			"sku":              analysis.Quote.SKU,
+			"description":      analysis.Quote.Description,
+			"seats":            analysis.Quote.Seats,
+			"term_months":      analysis.Quote.TermMonths,
+			"price_per_unit":   analysis.Quote.PricePerUnit,
+			"total_price":      analysis.Quote.TotalPrice,
+			"list_price":       analysis.Quote.ListPrice,
 			"discount_offered": analysis.Quote.DiscountOffered,
 		},
-		"market_range":       analysis.MarketRange,
-		"counter_offer_min":  analysis.CounterOfferMin,
-		"counter_offer_max":  analysis.CounterOfferMax,
-		"potential_savings":  analysis.PotentialSavings,
-		"confidence":         analysis.Confidence,
-		"duration_ms":        time.Since(start).Milliseconds(),
+		"market_range":      analysis.MarketRange,
+		"counter_offer_min": analysis.CounterOfferMin,
+		"counter_offer_max": analysis.CounterOfferMax,
+		"potential_savings": analysis.PotentialSavings,
+		"confidence":        analysis.Confidence,
+		"duration_ms":       time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -2841,68 +2854,67 @@ func (ns *NegotiationServer) handleGenerateCounter(ctx context.Context, req mcp.
 }
 
 func (ns *NegotiationServer) handleParseContract(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
-        rawText, _ := req.RequireString("raw_text")
-        vendor := req.GetString("vendor", "")
-        sku := req.GetString("sku", "")
+	start := time.Now()
+	rawText, _ := req.RequireString("raw_text")
+	vendor := req.GetString("vendor", "")
+	sku := req.GetString("sku", "")
 
-        ns.logger.Debug("parse_contract called", "vendor", vendor, "sku", sku, "text_length", len(rawText))
+	ns.logger.Debug("parse_contract called", "vendor", vendor, "sku", sku, "text_length", len(rawText))
 
-        result, err := ns.contractEng.ParseContract(ctx, rawText, vendor, sku)
-        if err != nil {
-                ns.logger.Warn("parse_contract failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Contract parse failed: %s", err.Error())), nil
-        }
+	result, err := ns.contractEng.ParseContract(ctx, rawText, vendor, sku)
+	if err != nil {
+		ns.logger.Warn("parse_contract failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Contract parse failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "terms":            result.Terms,
-                "field_confidence": result.FieldConf,
-                "warnings":         result.Warnings,
-                "auto_populated":   result.AutoPopulated,
-                "duration_ms":      time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"terms":            result.Terms,
+		"field_confidence": result.FieldConf,
+		"warnings":         result.Warnings,
+		"auto_populated":   result.AutoPopulated,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleParseAndCalendar(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
-        rawText, _ := req.RequireString("raw_text")
-        vendor := req.GetString("vendor", "")
-        sku := req.GetString("sku", "")
+	start := time.Now()
+	rawText, _ := req.RequireString("raw_text")
+	vendor := req.GetString("vendor", "")
+	sku := req.GetString("sku", "")
 
-        ns.logger.Debug("parse_and_calendar called", "vendor", vendor, "sku", sku, "text_length", len(rawText))
+	ns.logger.Debug("parse_and_calendar called", "vendor", vendor, "sku", sku, "text_length", len(rawText))
 
-        result, err := ns.contractEng.ParseContract(ctx, rawText, vendor, sku)
-        if err != nil {
-                ns.logger.Warn("parse_and_calendar failed at parse", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Contract parse failed: %s", err.Error())), nil
-        }
+	result, err := ns.contractEng.ParseContract(ctx, rawText, vendor, sku)
+	if err != nil {
+		ns.logger.Warn("parse_and_calendar failed at parse", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Contract parse failed: %s", err.Error())), nil
+	}
 
-        if result.Terms.EndDate != "" {
-                if err := ns.contractEng.PopulateCalendar(ctx, result); err != nil {
-                        ns.logger.Warn("parse_and_calendar failed at calendar population", "error", err.Error())
-                        // Return partial result with warning
-                        resp := map[string]any{
-                                "terms":            result.Terms,
-                                "field_confidence": result.FieldConf,
-                                "warnings":         append(result.Warnings, "calendar population failed: "+err.Error()),
-                                "auto_populated":   false,
-                                "duration_ms":      time.Since(start).Milliseconds(),
-                        }
-                        return ns.jsonResult(resp)
-                }
-        }
+	if result.Terms.EndDate != "" {
+		if err := ns.contractEng.PopulateCalendar(ctx, result); err != nil {
+			ns.logger.Warn("parse_and_calendar failed at calendar population", "error", err.Error())
+			// Return partial result with warning
+			resp := map[string]any{
+				"terms":            result.Terms,
+				"field_confidence": result.FieldConf,
+				"warnings":         append(result.Warnings, "calendar population failed: "+err.Error()),
+				"auto_populated":   false,
+				"duration_ms":      time.Since(start).Milliseconds(),
+			}
+			return ns.jsonResult(resp)
+		}
+	}
 
-        resp := map[string]any{
-                "terms":            result.Terms,
-                "field_confidence": result.FieldConf,
-                "warnings":         result.Warnings,
-                "auto_populated":   result.AutoPopulated,
-                "duration_ms":      time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"terms":            result.Terms,
+		"field_confidence": result.FieldConf,
+		"warnings":         result.Warnings,
+		"auto_populated":   result.AutoPopulated,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
-
 
 // ─── Gamification ───
 
@@ -2971,9 +2983,9 @@ func (ns *NegotiationServer) handleAchievements(ctx context.Context, req mcp.Cal
 	}
 
 	resp := map[string]any{
-		"user_id":    userID,
-		"badges":     badges,
-		"count":      len(badges),
+		"user_id":     userID,
+		"badges":      badges,
+		"count":       len(badges),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -3001,19 +3013,19 @@ func (ns *NegotiationServer) handleCalculateROI(ctx context.Context, req mcp.Cal
 	calc.Vendor = vendor
 
 	resp := map[string]any{
-		"vendor":                calc.Vendor,
-		"current_spend":         calc.CurrentSpend,
-		"negotiated_price":      calc.NegotiatedPrice,
-		"implementation_costs":  calc.ImplementationCosts,
-		"annual_overhead":       calc.AnnualOverhead,
-		"annual_savings":        calc.AnnualSavings,
-		"roi_pct":               calc.ROIPct,
-		"payback_months":        calc.PaybackMonths,
-		"savings_1y":            calc.Savings1Y,
-		"savings_3y":            calc.Savings3Y,
-		"savings_5y":            calc.Savings5Y,
-		"npv":                   calc.NPV,
-		"duration_ms":           time.Since(start).Milliseconds(),
+		"vendor":               calc.Vendor,
+		"current_spend":        calc.CurrentSpend,
+		"negotiated_price":     calc.NegotiatedPrice,
+		"implementation_costs": calc.ImplementationCosts,
+		"annual_overhead":      calc.AnnualOverhead,
+		"annual_savings":       calc.AnnualSavings,
+		"roi_pct":              calc.ROIPct,
+		"payback_months":       calc.PaybackMonths,
+		"savings_1y":           calc.Savings1Y,
+		"savings_3y":           calc.Savings3Y,
+		"savings_5y":           calc.Savings5Y,
+		"npv":                  calc.NPV,
+		"duration_ms":          time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -3071,19 +3083,19 @@ func (ns *NegotiationServer) handlePriceTrends(ctx context.Context, req mcp.Call
 	}
 
 	resp := map[string]any{
-		"vendor":           analysis.Vendor,
-		"sku":              analysis.SKU,
-		"period":           analysis.Period,
-		"direction":        analysis.Direction,
-		"slope":            analysis.Slope,
-		"volatility":       analysis.Volatility,
-		"price_change_6m":  analysis.PriceChange6M,
-		"forecast_3m":      analysis.Forecast3M,
-		"forecast_6m":      analysis.Forecast6M,
-		"seasonal":         analysis.Seasonal,
-		"data_points":      analysis.DataPoints,
-		"snapshots":        analysis.Snapshots,
-		"duration_ms":      time.Since(start).Milliseconds(),
+		"vendor":          analysis.Vendor,
+		"sku":             analysis.SKU,
+		"period":          analysis.Period,
+		"direction":       analysis.Direction,
+		"slope":           analysis.Slope,
+		"volatility":      analysis.Volatility,
+		"price_change_6m": analysis.PriceChange6M,
+		"forecast_3m":     analysis.Forecast3M,
+		"forecast_6m":     analysis.Forecast6M,
+		"seasonal":        analysis.Seasonal,
+		"data_points":     analysis.DataPoints,
+		"snapshots":       analysis.Snapshots,
+		"duration_ms":     time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -3106,16 +3118,16 @@ func (ns *NegotiationServer) handleWinLossAnalysis(ctx context.Context, req mcp.
 	}
 
 	resp := map[string]any{
-		"period":       report.Period,
-		"total_deals":  report.TotalDeals,
-		"won":          report.Won,
-		"lost":         report.Lost,
-		"pending":      report.Pending,
-		"win_rate_pct": report.WinRate,
-		"by_strategy":  report.ByStrategy,
-		"by_vendor":    report.ByVendor,
+		"period":        report.Period,
+		"total_deals":   report.TotalDeals,
+		"won":           report.Won,
+		"lost":          report.Lost,
+		"pending":       report.Pending,
+		"win_rate_pct":  report.WinRate,
+		"by_strategy":   report.ByStrategy,
+		"by_vendor":     report.ByVendor,
 		"monthly_trend": report.MonthlyTrend,
-		"duration_ms":  time.Since(start).Milliseconds(),
+		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -3233,13 +3245,13 @@ func (ns *NegotiationServer) handleSendNotification(ctx context.Context, req mcp
 	}
 
 	resp := map[string]any{
-		"id":         n.ID,
-		"type":       n.Type,
-		"channel":    n.Channel,
-		"message":    n.Message,
-		"priority":   n.Priority,
-		"status":     n.Status,
-		"created_at": n.CreatedAt.Format(time.RFC3339),
+		"id":          n.ID,
+		"type":        n.Type,
+		"channel":     n.Channel,
+		"message":     n.Message,
+		"priority":    n.Priority,
+		"status":      n.Status,
+		"created_at":  n.CreatedAt.Format(time.RFC3339),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -3357,13 +3369,13 @@ func (ns *NegotiationServer) handleBudgetForecast(ctx context.Context, req mcp.C
 	}
 
 	resp := map[string]any{
-		"vendor":            forecast.Vendor,
-		"ytd_budget":        forecast.YTDBudget,
-		"ytd_spent":         forecast.YTDSpent,
-		"projected_annual":  forecast.ProjectedAnnual,
-		"remaining_months":  forecast.RemainingMonths,
-		"status":            forecast.Status,
-		"duration_ms":       time.Since(start).Milliseconds(),
+		"vendor":           forecast.Vendor,
+		"ytd_budget":       forecast.YTDBudget,
+		"ytd_spent":        forecast.YTDSpent,
+		"projected_annual": forecast.ProjectedAnnual,
+		"remaining_months": forecast.RemainingMonths,
+		"status":           forecast.Status,
+		"duration_ms":      time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -3481,12 +3493,12 @@ func (ns *NegotiationServer) handleRealizationReport(ctx context.Context, req mc
 	}
 
 	resp := map[string]any{
-		"total_projected":   report.TotalProjected,
-		"total_realized":    report.TotalRealized,
-		"realization_rate":  report.RealizationRate,
-		"by_vendor":         report.ByVendor,
-		"top_shortfalls":    report.TopShortfalls,
-		"duration_ms":       time.Since(start).Milliseconds(),
+		"total_projected":  report.TotalProjected,
+		"total_realized":   report.TotalRealized,
+		"realization_rate": report.RealizationRate,
+		"by_vendor":        report.ByVendor,
+		"top_shortfalls":   report.TopShortfalls,
+		"duration_ms":      time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -3508,14 +3520,14 @@ func (ns *NegotiationServer) handleVendorSpend(ctx context.Context, req mcp.Call
 	}
 
 	resp := map[string]any{
-		"period":        report.Period,
-		"total_spend":   report.TotalSpend,
-		"vendors":       report.Vendors,
-		"subscriptions": report.Subscriptions,
-		"by_vendor":     report.ByVendor,
-		"monthly_trend": report.MonthlyTrend,
+		"period":         report.Period,
+		"total_spend":    report.TotalSpend,
+		"vendors":        report.Vendors,
+		"subscriptions":  report.Subscriptions,
+		"by_vendor":      report.ByVendor,
+		"monthly_trend":  report.MonthlyTrend,
 		"yoy_change_pct": report.YoYChangePct,
-		"duration_ms":   time.Since(start).Milliseconds(),
+		"duration_ms":    time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -3548,240 +3560,239 @@ func (ns *NegotiationServer) handleEffectivenessScore(ctx context.Context, req m
 	}
 	return ns.jsonResult(resp)
 }
+
 // ─── Price Alert Handlers ───
 
 func (ns *NegotiationServer) handleEnablePriceAlert(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        vendor, _ := req.RequireString("vendor")
-        sku, _ := req.RequireString("sku")
-        thresholdPct := req.GetFloat("threshold_pct", 10)
-        channel := req.GetString("channel", "webhook")
+	vendor, _ := req.RequireString("vendor")
+	sku, _ := req.RequireString("sku")
+	thresholdPct := req.GetFloat("threshold_pct", 10)
+	channel := req.GetString("channel", "webhook")
 
-        ns.logger.Debug("enable_price_alert", "vendor", vendor, "sku", sku, "threshold", thresholdPct)
+	ns.logger.Debug("enable_price_alert", "vendor", vendor, "sku", sku, "threshold", thresholdPct)
 
-        rule, err := ns.priceAlertEng.EnableAlert(ctx, vendor, sku, thresholdPct, channel)
-        if err != nil {
-                ns.logger.Warn("enable_price_alert failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Enable price alert failed: %s", err.Error())), nil
-        }
+	rule, err := ns.priceAlertEng.EnableAlert(ctx, vendor, sku, thresholdPct, channel)
+	if err != nil {
+		ns.logger.Warn("enable_price_alert failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Enable price alert failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "vendor":       rule.Vendor,
-                "sku":          rule.SKU,
-                "threshold_pct": rule.ThresholdPct,
-                "channel":     rule.Channel,
-                "enabled":     rule.Enabled,
-                "created_at":  rule.CreatedAt,
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"vendor":        rule.Vendor,
+		"sku":           rule.SKU,
+		"threshold_pct": rule.ThresholdPct,
+		"channel":       rule.Channel,
+		"enabled":       rule.Enabled,
+		"created_at":    rule.CreatedAt,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleCheckPriceAlerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        ns.logger.Debug("check_price_alerts")
+	ns.logger.Debug("check_price_alerts")
 
-        results, err := ns.priceAlertEng.CheckAlerts(ctx)
-        if err != nil {
-                ns.logger.Warn("check_price_alerts failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Check price alerts failed: %s", err.Error())), nil
-        }
+	results, err := ns.priceAlertEng.CheckAlerts(ctx)
+	if err != nil {
+		ns.logger.Warn("check_price_alerts failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Check price alerts failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "results":    results,
-                "count":      len(results),
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"results":     results,
+		"count":       len(results),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleDisablePriceAlert(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        vendor, _ := req.RequireString("vendor")
-        sku, _ := req.RequireString("sku")
+	vendor, _ := req.RequireString("vendor")
+	sku, _ := req.RequireString("sku")
 
-        ns.logger.Debug("disable_price_alert", "vendor", vendor, "sku", sku)
+	ns.logger.Debug("disable_price_alert", "vendor", vendor, "sku", sku)
 
-        if err := ns.priceAlertEng.DisableAlert(ctx, vendor, sku); err != nil {
-                ns.logger.Warn("disable_price_alert failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Disable price alert failed: %s", err.Error())), nil
-        }
+	if err := ns.priceAlertEng.DisableAlert(ctx, vendor, sku); err != nil {
+		ns.logger.Warn("disable_price_alert failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Disable price alert failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "status":     "disabled",
-                "vendor":     vendor,
-                "sku":        sku,
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"status":      "disabled",
+		"vendor":      vendor,
+		"sku":         sku,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // ─── Renewal Reminder Handlers ───
 
 func (ns *NegotiationServer) handleCheckRenewalReminders(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        ns.logger.Debug("check_renewal_reminders")
+	ns.logger.Debug("check_renewal_reminders")
 
-        result, err := ns.reminderEng.CheckRenewals(ctx)
-        if err != nil {
-                ns.logger.Warn("check_renewal_reminders failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Check renewal reminders failed: %s", err.Error())), nil
-        }
+	result, err := ns.reminderEng.CheckRenewals(ctx)
+	if err != nil {
+		ns.logger.Warn("check_renewal_reminders failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Check renewal reminders failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "critical":   result.Critical,
-                "soon":       result.Soon,
-                "upcoming":   result.Upcoming,
-                "total":      len(result.Critical) + len(result.Soon) + len(result.Upcoming),
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"critical":    result.Critical,
+		"soon":        result.Soon,
+		"upcoming":    result.Upcoming,
+		"total":       len(result.Critical) + len(result.Soon) + len(result.Upcoming),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // ─── Budget Alert Handlers ───
 
 func (ns *NegotiationServer) handleCheckBudgetAlerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        ns.logger.Debug("check_budget_alerts")
+	ns.logger.Debug("check_budget_alerts")
 
-        alerts, err := ns.budgetAlertEng.CheckBudgets(ctx)
-        if err != nil {
-                ns.logger.Warn("check_budget_alerts failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Check budget alerts failed: %s", err.Error())), nil
-        }
+	alerts, err := ns.budgetAlertEng.CheckBudgets(ctx)
+	if err != nil {
+		ns.logger.Warn("check_budget_alerts failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Check budget alerts failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "alerts":     alerts,
-                "count":      len(alerts),
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"alerts":      alerts,
+		"count":       len(alerts),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleBudgetAlertHistory(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        vendor, _ := req.RequireString("vendor")
-        limit := int(req.GetInt("limit", 10))
+	vendor, _ := req.RequireString("vendor")
+	limit := int(req.GetInt("limit", 10))
 
-        ns.logger.Debug("budget_alert_history", "vendor", vendor, "limit", limit)
+	ns.logger.Debug("budget_alert_history", "vendor", vendor, "limit", limit)
 
-        history, err := ns.budgetAlertEng.Store().List(ctx, vendor, limit)
-        if err != nil {
-                ns.logger.Warn("budget_alert_history failed", "error", err.Error())
-                return mcp.NewToolResultError(fmt.Sprintf("Budget alert history failed: %s", err.Error())), nil
-        }
+	history, err := ns.budgetAlertEng.Store().List(ctx, vendor, limit)
+	if err != nil {
+		ns.logger.Warn("budget_alert_history failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Budget alert history failed: %s", err.Error())), nil
+	}
 
-        resp := map[string]any{
-                "vendor":     vendor,
-                "history":    history,
-                "count":      len(history),
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"vendor":      vendor,
+		"history":     history,
+		"count":       len(history),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
-
 
 // --- Report Builder Handler ---
 
 func (ns *NegotiationServer) handleBuildReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        rawSections, _ := req.GetArguments()["sections"]
-        sectionsRaw, _ := rawSections.([]any)
-        sections := make([]string, len(sectionsRaw))
-        for i, v := range sectionsRaw {
-                sections[i], _ = v.(string)
-        }
-        if len(sections) == 0 {
-                return mcp.NewToolResultError("sections is required"), nil
-        }
+	rawSections, _ := req.GetArguments()["sections"]
+	sectionsRaw, _ := rawSections.([]any)
+	sections := make([]string, len(sectionsRaw))
+	for i, v := range sectionsRaw {
+		sections[i], _ = v.(string)
+	}
+	if len(sections) == 0 {
+		return mcp.NewToolResultError("sections is required"), nil
+	}
 
-        period := req.GetString("period", "all")
-        vendor := req.GetString("vendor", "")
+	period := req.GetString("period", "all")
+	vendor := req.GetString("vendor", "")
 
-        ns.logger.Debug("build_report called", "sections", sections, "period", period, "vendor", vendor)
+	ns.logger.Debug("build_report called", "sections", sections, "period", period, "vendor", vendor)
 
-        reqData := reports.ReportRequest{
-                Sections: sections,
-                Period:   period,
-                Vendor:   vendor,
-        }
-        result, err := ns.reportsEng.Build(ctx, reqData)
-        if err != nil {
-                ns.logger.Warn("build_report failed", "error", err.Error())
-                return mcp.NewToolResultError("Build report failed: " + err.Error()), nil
-        }
+	reqData := reports.ReportRequest{
+		Sections: sections,
+		Period:   period,
+		Vendor:   vendor,
+	}
+	result, err := ns.reportsEng.Build(ctx, reqData)
+	if err != nil {
+		ns.logger.Warn("build_report failed", "error", err.Error())
+		return mcp.NewToolResultError("Build report failed: " + err.Error()), nil
+	}
 
-        resp := map[string]any{
-                "sections":      result.Sections,
-                "generated_at":  result.GeneratedAt,
-                "section_count": result.SectionCount,
-                "duration_ms":   time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"sections":      result.Sections,
+		"generated_at":  result.GeneratedAt,
+		"section_count": result.SectionCount,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // --- Pricing Index Handler ---
 
 func (ns *NegotiationServer) handlePricingIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        category := req.GetString("category", "")
-        vendor := req.GetString("vendor", "")
+	category := req.GetString("category", "")
+	vendor := req.GetString("vendor", "")
 
-        ns.logger.Debug("pricing_index called", "category", category, "vendor", vendor)
+	ns.logger.Debug("pricing_index called", "category", category, "vendor", vendor)
 
-        result, err := ns.pricingIndexEng.Index(ctx, category, vendor)
-        if err != nil {
-                ns.logger.Warn("pricing_index failed", "error", err.Error())
-                return mcp.NewToolResultError("Pricing index failed: " + err.Error()), nil
-        }
+	result, err := ns.pricingIndexEng.Index(ctx, category, vendor)
+	if err != nil {
+		ns.logger.Warn("pricing_index failed", "error", err.Error())
+		return mcp.NewToolResultError("Pricing index failed: " + err.Error()), nil
+	}
 
-        resp := map[string]any{
-                "category":         result.Category,
-                "period":           result.Period,
-                "avg_price":        result.AvgPrice,
-                "price_range":      result.PriceRange,
-                "vendors":          result.Vendors,
-                "mom_change_pct":   result.MoMChangePct,
-                "volatility_index": result.VolatilityIdx,
-                "duration_ms":      time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"category":         result.Category,
+		"period":           result.Period,
+		"avg_price":        result.AvgPrice,
+		"price_range":      result.PriceRange,
+		"vendors":          result.Vendors,
+		"mom_change_pct":   result.MoMChangePct,
+		"volatility_index": result.VolatilityIdx,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // --- Price Chart Handler ---
 
 func (ns *NegotiationServer) handlePriceChart(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        vendor, _ := req.RequireString("vendor")
-        sku := req.GetString("sku", "")
-        period := req.GetString("period", "1y")
+	vendor, _ := req.RequireString("vendor")
+	sku := req.GetString("sku", "")
+	period := req.GetString("period", "1y")
 
-        ns.logger.Debug("price_chart called", "vendor", vendor, "sku", sku, "period", period)
+	ns.logger.Debug("price_chart called", "vendor", vendor, "sku", sku, "period", period)
 
-        result, err := ns.priceChartEng.Chart(ctx, vendor, sku, period)
-        if err != nil {
-                ns.logger.Warn("price_chart failed", "error", err.Error())
-                return mcp.NewToolResultError("Price chart failed: " + err.Error()), nil
-        }
+	result, err := ns.priceChartEng.Chart(ctx, vendor, sku, period)
+	if err != nil {
+		ns.logger.Warn("price_chart failed", "error", err.Error())
+		return mcp.NewToolResultError("Price chart failed: " + err.Error()), nil
+	}
 
-        resp := map[string]any{
-                "labels":      result.Labels,
-                "datasets":    result.Datasets,
-                "summary":     result.Summary,
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"labels":      result.Labels,
+		"datasets":    result.Datasets,
+		"summary":     result.Summary,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
-
 
 // ─── Vendor Comparison Handler ───
 
@@ -3900,7 +3911,6 @@ func (ns *NegotiationServer) handleCompareStrategies(ctx context.Context, req mc
 	}
 	return ns.jsonResult(resp)
 }
-
 
 // --- Workspace Handlers ---
 
@@ -4036,99 +4046,98 @@ func (ns *NegotiationServer) handleUserActivity(ctx context.Context, req mcp.Cal
 	}
 
 	resp := map[string]any{
-		"user_id":                 report.UserID,
-		"period":                  report.Period,
-		"total_sessions":          report.TotalSessions,
-		"completed_negotiations":  report.CompletedNegotiations,
-		"total_savings":           report.TotalSavings,
-		"active_days":             report.ActiveDays,
-		"last_active":             report.LastActive,
-		"favorite_strategies":     report.FavoriteStrategies,
-		"top_vendors":             report.TopVendors,
-		"duration_ms":             time.Since(start).Milliseconds(),
+		"user_id":                report.UserID,
+		"period":                 report.Period,
+		"total_sessions":         report.TotalSessions,
+		"completed_negotiations": report.CompletedNegotiations,
+		"total_savings":          report.TotalSavings,
+		"active_days":            report.ActiveDays,
+		"last_active":            report.LastActive,
+		"favorite_strategies":    report.FavoriteStrategies,
+		"top_vendors":            report.TopVendors,
+		"duration_ms":            time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
 
-
 // --- Contract Template Handlers ---
 
 func (ns *NegotiationServer) handleListContractTemplates(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        category := req.GetString("category", "")
+	category := req.GetString("category", "")
 
-        ns.logger.Debug("list_contract_templates called", "category", category)
+	ns.logger.Debug("list_contract_templates called", "category", category)
 
-        templates, err := ns.contractTemplatesEng.ListTemplates(ctx, category)
-        if err != nil {
-                ns.logger.Warn("list_contract_templates failed", "error", err.Error())
-                return mcp.NewToolResultError("List contract templates failed: " + err.Error()), nil
-        }
+	templates, err := ns.contractTemplatesEng.ListTemplates(ctx, category)
+	if err != nil {
+		ns.logger.Warn("list_contract_templates failed", "error", err.Error())
+		return mcp.NewToolResultError("List contract templates failed: " + err.Error()), nil
+	}
 
-        resp := map[string]any{
-                "templates":   templates,
-                "count":       len(templates),
-                "duration_ms": time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"templates":   templates,
+		"count":       len(templates),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 func (ns *NegotiationServer) handleGenerateContract(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        templateID, _ := req.RequireString("template_id")
-        vendor, _ := req.RequireString("vendor")
+	templateID, _ := req.RequireString("template_id")
+	vendor, _ := req.RequireString("vendor")
 
-        // Parse params map
-        params := map[string]string{}
-        if rawParams, ok := req.GetArguments()["params"]; ok {
-                if paramsMap, ok := rawParams.(map[string]any); ok {
-                        for k, v := range paramsMap {
-                                if s, ok := v.(string); ok {
-                                        params[k] = s
-                                }
-                        }
-                }
-        }
+	// Parse params map
+	params := map[string]string{}
+	if rawParams, ok := req.GetArguments()["params"]; ok {
+		if paramsMap, ok := rawParams.(map[string]any); ok {
+			for k, v := range paramsMap {
+				if s, ok := v.(string); ok {
+					params[k] = s
+				}
+			}
+		}
+	}
 
-        ns.logger.Debug("generate_contract called", "template_id", templateID, "vendor", vendor)
+	ns.logger.Debug("generate_contract called", "template_id", templateID, "vendor", vendor)
 
-        contract, err := ns.contractTemplatesEng.GenerateContract(ctx, templateID, vendor, params)
-        if err != nil {
-                ns.logger.Warn("generate_contract failed", "error", err.Error())
-                return mcp.NewToolResultError("Generate contract failed: " + err.Error()), nil
-        }
+	contract, err := ns.contractTemplatesEng.GenerateContract(ctx, templateID, vendor, params)
+	if err != nil {
+		ns.logger.Warn("generate_contract failed", "error", err.Error())
+		return mcp.NewToolResultError("Generate contract failed: " + err.Error()), nil
+	}
 
-        resp := map[string]any{
-                "template_id":    contract.TemplateID,
-                "vendor_name":    contract.VendorName,
-                "content":        contract.Content,
-                "variables_used": contract.VariablesUsed,
-                "duration_ms":    time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"template_id":    contract.TemplateID,
+		"vendor_name":    contract.VendorName,
+		"content":        contract.Content,
+		"variables_used": contract.VariablesUsed,
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // --- Contract Risk Handler ---
 
 func (ns *NegotiationServer) handleContractRisk(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        contractText, _ := req.RequireString("contract_text")
+	contractText, _ := req.RequireString("contract_text")
 
-        ns.logger.Debug("contract_risk called", "text_length", len(contractText))
+	ns.logger.Debug("contract_risk called", "text_length", len(contractText))
 
-        report := ns.contractRiskEng.Analyze(contractText)
+	report := ns.contractRiskEng.Analyze(contractText)
 
-        resp := map[string]any{
-                "overall_score":    report.OverallScore,
-                "risk_level":       report.RiskLevel,
-                "clauses":          report.Clauses,
-                "recommendations":  report.Recommendations,
-                "duration_ms":      time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"overall_score":   report.OverallScore,
+		"risk_level":      report.RiskLevel,
+		"clauses":         report.Clauses,
+		"recommendations": report.Recommendations,
+		"duration_ms":     time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // --- Shared Strategy Handlers ---
@@ -4204,7 +4213,6 @@ func (ns *NegotiationServer) handleImportStrategy(ctx context.Context, req mcp.C
 	return ns.jsonResult(resp)
 }
 
-
 // --- Notes Handlers ---
 
 func (ns *NegotiationServer) handleAddNote(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -4274,7 +4282,6 @@ func (ns *NegotiationServer) handleDeleteNote(ctx context.Context, req mcp.CallT
 	}
 	return ns.jsonResult(resp)
 }
-
 
 // --- Approval Handlers ---
 
@@ -4379,32 +4386,32 @@ func (ns *NegotiationServer) handlePendingApprovals(ctx context.Context, req mcp
 // --- Vendor Scorecard Handler ---
 
 func (ns *NegotiationServer) handleVendorScorecard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-        start := time.Now()
+	start := time.Now()
 
-        vendor, _ := req.RequireString("vendor")
-        period := req.GetString("period", "1y")
+	vendor, _ := req.RequireString("vendor")
+	period := req.GetString("period", "1y")
 
-        ns.logger.Debug("vendor_scorecard called", "vendor", vendor, "period", period)
+	ns.logger.Debug("vendor_scorecard called", "vendor", vendor, "period", period)
 
-        scorecard, err := ns.scorecardsEng.Scorecard(ctx, vendor, period)
-        if err != nil {
-                ns.logger.Warn("vendor_scorecard failed", "error", err.Error())
-                return mcp.NewToolResultError("Vendor scorecard failed: " + err.Error()), nil
-        }
+	scorecard, err := ns.scorecardsEng.Scorecard(ctx, vendor, period)
+	if err != nil {
+		ns.logger.Warn("vendor_scorecard failed", "error", err.Error())
+		return mcp.NewToolResultError("Vendor scorecard failed: " + err.Error()), nil
+	}
 
-        resp := map[string]any{
-                "vendor":             scorecard.Vendor,
-                "period":             scorecard.Period,
-                "overall_score":      scorecard.OverallScore,
-                "pricing_score":      scorecard.PricingScore,
-                "reliability_score":  scorecard.ReliabilityScore,
-                "support_score":      scorecard.SupportScore,
-                "relationship_score": scorecard.RelationshipScore,
-                "trend":              scorecard.Trend,
-                "details":            scorecard.Details,
-                "duration_ms":        time.Since(start).Milliseconds(),
-        }
-        return ns.jsonResult(resp)
+	resp := map[string]any{
+		"vendor":             scorecard.Vendor,
+		"period":             scorecard.Period,
+		"overall_score":      scorecard.OverallScore,
+		"pricing_score":      scorecard.PricingScore,
+		"reliability_score":  scorecard.ReliabilityScore,
+		"support_score":      scorecard.SupportScore,
+		"relationship_score": scorecard.RelationshipScore,
+		"trend":              scorecard.Trend,
+		"details":            scorecard.Details,
+		"duration_ms":        time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // --- TCO Handler ---
@@ -4439,19 +4446,19 @@ func (ns *NegotiationServer) handleTCO(ctx context.Context, req mcp.CallToolRequ
 	}
 
 	resp := map[string]any{
-		"vendor":                    output.Vendor,
-		"sku":                       output.SKU,
-		"seats":                     output.Seats,
-		"term_months":               output.TermMonths,
-		"per_unit_cost":             output.PerUnitCost,
-		"annual_subscription":       output.AnnualSubscription,
-		"total_1y_tco":              output.Total1YTCO,
-		"total_3y_tco":              output.Total3YTCO,
-		"cost_per_user_per_month":   output.CostPerUserPerMonth,
-		"market_avg_cupm":           output.MarketAvgCUPM,
-		"savings_vs_market_pct":     output.SavingsVsMarketPct,
-		"hidden_costs_flagged":      output.HiddenCostsFlagged,
-		"duration_ms":               time.Since(start).Milliseconds(),
+		"vendor":                  output.Vendor,
+		"sku":                     output.SKU,
+		"seats":                   output.Seats,
+		"term_months":             output.TermMonths,
+		"per_unit_cost":           output.PerUnitCost,
+		"annual_subscription":     output.AnnualSubscription,
+		"total_1y_tco":            output.Total1YTCO,
+		"total_3y_tco":            output.Total3YTCO,
+		"cost_per_user_per_month": output.CostPerUserPerMonth,
+		"market_avg_cupm":         output.MarketAvgCUPM,
+		"savings_vs_market_pct":   output.SavingsVsMarketPct,
+		"hidden_costs_flagged":    output.HiddenCostsFlagged,
+		"duration_ms":             time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -4544,11 +4551,11 @@ func (ns *NegotiationServer) handleCostAllocationReport(ctx context.Context, req
 	}
 
 	resp := map[string]any{
-		"period":            report.Period,
-		"total_spend":       report.TotalSpend,
-		"by_department":     report.ByDepartment,
+		"period":             report.Period,
+		"total_spend":        report.TotalSpend,
+		"by_department":      report.ByDepartment,
 		"by_vendor_per_dept": report.ByVendorDept,
-		"duration_ms":       time.Since(start).Milliseconds(),
+		"duration_ms":        time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -4569,8 +4576,8 @@ func (ns *NegotiationServer) handleAlertHistory(ctx context.Context, req mcp.Cal
 	}
 
 	resp := map[string]any{
-		"entries":   feed.Entries,
-		"grouped":   feed.Grouped,
+		"entries":     feed.Entries,
+		"grouped":     feed.Grouped,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -4634,12 +4641,12 @@ func (ns *NegotiationServer) handleLogCommunication(ctx context.Context, req mcp
 	}
 
 	resp := map[string]any{
-		"id":         entry.ID,
-		"vendor":     entry.Vendor,
-		"comm_type":  entry.CommType,
-		"summary":    entry.Summary,
-		"detail":     entry.Detail,
-		"created_at": entry.CreatedAt,
+		"id":          entry.ID,
+		"vendor":      entry.Vendor,
+		"comm_type":   entry.CommType,
+		"summary":     entry.Summary,
+		"detail":      entry.Detail,
+		"created_at":  entry.CreatedAt,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -4702,12 +4709,12 @@ func (ns *NegotiationServer) handleAnalyzeOffer(ctx context.Context, req mcp.Cal
 	}
 
 	resp := map[string]any{
-		"savings":          result.Savings,
-		"days_remaining":   result.DaysRemaining,
-		"urgency":          result.Urgency,
-		"recommendation":   result.Recommendation,
+		"savings":           result.Savings,
+		"days_remaining":    result.DaysRemaining,
+		"urgency":           result.Urgency,
+		"recommendation":    result.Recommendation,
 		"vs_best_price_pct": result.VsBestPricePct,
-		"duration_ms":      time.Since(start).Milliseconds(),
+		"duration_ms":       time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -4782,10 +4789,10 @@ func (ns *NegotiationServer) handleLogAPIRequest(ctx context.Context, req mcp.Ca
 	}
 
 	resp := map[string]any{
-		"id":         entry.ID,
-		"api_key_id": entry.APIKeyID,
-		"endpoint":   entry.Endpoint,
-		"timestamp":  entry.Timestamp,
+		"id":          entry.ID,
+		"api_key_id":  entry.APIKeyID,
+		"endpoint":    entry.Endpoint,
+		"timestamp":   entry.Timestamp,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -4808,18 +4815,18 @@ func (ns *NegotiationServer) handleAPIDocs(ctx context.Context, req mcp.CallTool
 			return mcp.NewToolResultError("API docs generation failed: " + err.Error()), nil
 		}
 		resp := map[string]any{
-			"format":      "json",
+			"format":        "json",
 			"documentation": string(data),
-			"duration_ms":  time.Since(start).Milliseconds(),
+			"duration_ms":   time.Since(start).Milliseconds(),
 		}
 		return ns.jsonResult(resp)
 	}
 
 	markdown := ns.apiDocsEng.GenerateMarkdown()
 	resp := map[string]any{
-		"format":      "markdown",
+		"format":        "markdown",
 		"documentation": markdown,
-		"duration_ms":  time.Since(start).Milliseconds(),
+		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -4856,17 +4863,16 @@ func (ns *NegotiationServer) handleHealth(ctx context.Context, req mcp.CallToolR
 	result := ns.healthCheckEng.Check(ctx)
 
 	resp := map[string]any{
-		"status":        result.Status,
-		"database_ok":   result.DatabaseOK,
-		"tool_count":    result.ToolCount,
-		"db_size_bytes": result.DBSizeBytes,
+		"status":         result.Status,
+		"database_ok":    result.DatabaseOK,
+		"tool_count":     result.ToolCount,
+		"db_size_bytes":  result.DBSizeBytes,
 		"uptime_seconds": result.UptimeSecs,
-		"started_at":    result.StartedAt,
-		"duration_ms":   time.Since(start).Milliseconds(),
+		"started_at":     result.StartedAt,
+		"duration_ms":    time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
-
 
 func (ns *NegotiationServer) handleCLIAutocomplete(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	start := time.Now()
@@ -4878,8 +4884,8 @@ func (ns *NegotiationServer) handleCLIAutocomplete(ctx context.Context, req mcp.
 	script := ns.autocompleteEng.Generate(shell)
 
 	resp := map[string]any{
-		"content": script.Content,
-		"shell":   script.Shell,
+		"content":     script.Content,
+		"shell":       script.Shell,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -4897,7 +4903,7 @@ func (ns *NegotiationServer) handleMetrics(ctx context.Context, req mcp.CallTool
 	}
 
 	resp := map[string]any{
-		"content":   payload.Content,
+		"content":     payload.Content,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -4906,18 +4912,20 @@ func (ns *NegotiationServer) handleMetrics(ctx context.Context, req mcp.CallTool
 func (ns *NegotiationServer) handleShutdown(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ns.logger.Debug("negotiate_shutdown called")
 
-		// Collect closable stores
+	// Collect closable stores
+	var db *sql.DB
 	var stores []shutdown.Closable
 	if ns.pricingStore != nil {
+		db = ns.pricingStore.DB()
 		stores = append(stores, ns.pricingStore)
 	}
 
-	result := ns.shutdownEng.Shutdown(ns.pricingStore.DB(), stores)
+	result := ns.shutdownEng.Shutdown(db, stores)
 
 	resp := map[string]any{
-		"status":             result.Status,
-		"resources_cleaned":  result.ResourcesCleaned,
-		"duration_ms":        result.DurationMs,
+		"status":            result.Status,
+		"resources_cleaned": result.ResourcesCleaned,
+		"duration_ms":       result.DurationMs,
 	}
 	return ns.jsonResult(resp)
 }
@@ -4971,7 +4979,7 @@ func (ns *NegotiationServer) handleDependencies(ctx context.Context, req mcp.Cal
 		"direct":      report.Direct,
 		"indirect":    report.Indirect,
 		"total_count": report.TotalCount,
-		"duration_ms":  time.Since(start).Milliseconds(),
+		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -4992,8 +5000,8 @@ func (ns *NegotiationServer) handleContributionGuide(ctx context.Context, req mc
 	}
 
 	resp := map[string]any{
-		"content":   guide.Content,
-		"sections":  guide.Sections,
+		"content":     guide.Content,
+		"sections":    guide.Sections,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
@@ -5209,16 +5217,16 @@ func (ns *NegotiationServer) handleSimulate(ctx context.Context, req mcp.CallToo
 	}
 
 	resp := map[string]any{
-		"id":              result.ID,
-		"vendor":          result.Vendor,
-		"strategy":        result.Strategy,
-		"budget":          result.Budget,
-		"total_rounds":    result.TotalRounds,
-		"rounds":          result.Rounds,
-		"final_outcome":   result.FinalOutcome,
+		"id":                 result.ID,
+		"vendor":             result.Vendor,
+		"strategy":           result.Strategy,
+		"budget":             result.Budget,
+		"total_rounds":       result.TotalRounds,
+		"rounds":             result.Rounds,
+		"final_outcome":      result.FinalOutcome,
 		"total_discount_pct": result.TotalDiscount,
-		"lessons":         result.Lessons,
-		"duration_ms":     time.Since(start).Milliseconds(),
+		"lessons":            result.Lessons,
+		"duration_ms":        time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
@@ -5237,6 +5245,96 @@ func (ns *NegotiationServer) handlePlaybook(ctx context.Context, req mcp.CallToo
 	resp := map[string]any{
 		"content":     pb.Content,
 		"sections":    pb.Sections,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P83: Industry Report Handlers ───
+
+func (ns *NegotiationServer) handleSaveReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	title, err := req.RequireString("title")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: title"), nil
+	}
+	category, err := req.RequireString("category")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: category"), nil
+	}
+	content, err := req.RequireString("content")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: content"), nil
+	}
+	source, err := req.RequireString("source")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: source"), nil
+	}
+
+	ns.logger.Debug("negotiate_save_report called", "title", title, "category", category, "source", source)
+
+	report, err := ns.industryReportsStore.SaveReport(ctx, title, category, content, source)
+	if err != nil {
+		ns.logger.Warn("negotiate_save_report failed", "error", err.Error())
+		return mcp.NewToolResultError("Save report failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":         report.ID,
+		"title":      report.Title,
+		"category":   report.Category,
+		"source":     report.Source,
+		"created_at": report.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListReports(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	category := req.GetString("category", "")
+
+	ns.logger.Debug("negotiate_list_reports called", "category", category)
+
+	reports, err := ns.industryReportsStore.ListReports(ctx, category)
+	if err != nil {
+		ns.logger.Warn("negotiate_list_reports failed", "error", err.Error())
+		return mcp.NewToolResultError("List reports failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"reports":     reports,
+		"total":       len(reports),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleGetReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	reportID, err := req.RequireInt("report_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: report_id"), nil
+	}
+
+	ns.logger.Debug("negotiate_get_report called", "report_id", reportID)
+
+	report, err := ns.industryReportsStore.GetReport(ctx, reportID)
+	if err != nil {
+		ns.logger.Warn("negotiate_get_report failed", "error", err.Error())
+		return mcp.NewToolResultError("Get report failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          report.ID,
+		"title":       report.Title,
+		"category":    report.Category,
+		"content":     report.Content,
+		"source":      report.Source,
+		"created_at":  report.CreatedAt,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
