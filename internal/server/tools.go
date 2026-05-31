@@ -76,6 +76,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/prompts"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/quote"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ratelimitdashboard"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ratelimitmgr"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reminders"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/roi"
@@ -218,10 +219,11 @@ type NegotiationServer struct {
 	qrShareEng          *qrshare.Engine
 	pushStore           *pushnotif.Store
 	pushEng             *pushnotif.Engine
+	rateLimitMgrStore   *ratelimitmgr.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, strategyMarketStore *strategymarket.Store, batchCsvEng *batchcsv.Engine, vendorReviewsStore *vendorreviews.Store, communityBenchStore *communitybench.Store, qrShareEng *qrshare.Engine, pushStore *pushnotif.Store, pushEng *pushnotif.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, strategyMarketStore *strategymarket.Store, batchCsvEng *batchcsv.Engine, vendorReviewsStore *vendorreviews.Store, communityBenchStore *communitybench.Store, qrShareEng *qrshare.Engine, pushStore *pushnotif.Store, pushEng *pushnotif.Engine, rateLimitMgrStore *ratelimitmgr.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -359,6 +361,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 			communityBenchStore:  communityBenchStore,
 		batchCsvEng: batchCsvEng,
 		qrShareEng: qrShareEng,
+		rateLimitMgrStore: rateLimitMgrStore,
 	}
 
 	ns.registerTools()
@@ -7762,3 +7765,81 @@ func (ns *NegotiationServer) handleQRSession(ctx context.Context, req mcp.CallTo
 	}
 	return ns.jsonResult(resp)
 }
+func (ns *NegotiationServer) handleRateLimitConfig(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        ns.logger.Debug("negotiate_rate_limit_config called")
+
+        configs, err := ns.rateLimitMgrStore.GetConfig(ctx)
+        if err != nil {
+                ns.logger.Warn("negotiate_rate_limit_config failed", "error", err.Error())
+                return mcp.NewToolResultError("Get config failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "configs":     configs,
+                "count":       len(configs),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRateLimitSetConfig(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        toolName, err := req.RequireString("tool_name")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: tool_name"), nil
+        }
+        maxCalls, err := req.RequireInt("max_calls")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: max_calls"), nil
+        }
+        windowSeconds, err := req.RequireInt("window_seconds")
+        if err != nil {
+                return mcp.NewToolResultError("Missing required parameter: window_seconds"), nil
+        }
+
+        ns.logger.Debug("negotiate_rate_limit_set_config called", "tool_name", toolName, "max_calls", maxCalls, "window_seconds", windowSeconds)
+
+        cfg, err := ns.rateLimitMgrStore.SetConfig(ctx, toolName, maxCalls, windowSeconds)
+        if err != nil {
+                ns.logger.Warn("negotiate_rate_limit_set_config failed", "error", err.Error())
+                return mcp.NewToolResultError("Set config failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "tool_name":      cfg.ToolName,
+                "max_calls":      cfg.MaxCalls,
+                "window_seconds": cfg.WindowSeconds,
+                "updated_at":     cfg.UpdatedAt,
+                "duration_ms":    time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRateLimitHits(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        period, err := req.RequireString("period")
+        if err != nil {
+                period = ""
+        }
+
+        ns.logger.Debug("negotiate_rate_limit_hits called", "period", period)
+
+        hits, err := ns.rateLimitMgrStore.GetHits(ctx, period)
+        if err != nil {
+                ns.logger.Warn("negotiate_rate_limit_hits failed", "error", err.Error())
+                return mcp.NewToolResultError("Get hits failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "hits":        hits,
+                "count":       len(hits),
+                "period":      period,
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
