@@ -41,6 +41,9 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricechart"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingindex"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/reports"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorcomparison"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -82,10 +85,13 @@ type NegotiationServer struct {
         reportsEng     *reports.Engine
         pricingIndexEng *pricingindex.Engine
         priceChartEng   *pricechart.Engine
+	vendorComparisonEng    *vendorcomparison.Engine
+	batchNegotiationEng    *batchnegotiation.Engine
+	strategyComparisonEng  *strategycomparison.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -3153,4 +3159,123 @@ func (ns *NegotiationServer) handlePriceChart(ctx context.Context, req mcp.CallT
                 "duration_ms": time.Since(start).Milliseconds(),
         }
         return ns.jsonResult(resp)
+}
+
+
+// ─── Vendor Comparison Handler ───
+
+func (ns *NegotiationServer) handleCompareVendors(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	category, _ := req.RequireString("category")
+	rawFeatures, _ := req.GetArguments()["features"]
+	var features []string
+	if rawFeatures != nil {
+		if arr, ok := rawFeatures.([]any); ok {
+			for _, v := range arr {
+				if s, ok := v.(string); ok {
+					features = append(features, s)
+				}
+			}
+		}
+	}
+	seats := int(req.GetInt("seats", 50))
+
+	ns.logger.Debug("compare_vendors called", "category", category, "features", features, "seats", seats)
+
+	compReq := vendorcomparison.ComparisonRequest{
+		Category: category,
+		Features: features,
+		Seats:    seats,
+	}
+	result, err := ns.vendorComparisonEng.Compare(ctx, compReq)
+	if err != nil {
+		ns.logger.Warn("compare_vendors failed", "error", err.Error())
+		return mcp.NewToolResultError("Compare vendors failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"category":    result.Category,
+		"comparisons": result.Comparisons,
+		"top_pick":    result.TopPick,
+		"avg_price":   result.AvgPrice,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Batch Negotiation Handler ───
+
+func (ns *NegotiationServer) handleBatchNegotiate(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendorsJSON, _ := req.RequireString("vendors_json")
+
+	ns.logger.Debug("batch_negotiate called")
+
+	var items []batchnegotiation.BatchItem
+	if err := json.Unmarshal([]byte(vendorsJSON), &items); err != nil {
+		return mcp.NewToolResultError("Invalid vendors_json: " + err.Error()), nil
+	}
+
+	batchReq := batchnegotiation.BatchRequest{Items: items}
+	result, err := ns.batchNegotiationEng.Run(ctx, batchReq)
+	if err != nil {
+		ns.logger.Warn("batch_negotiate failed", "error", err.Error())
+		return mcp.NewToolResultError("Batch negotiate failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"batch_id":      result.BatchID,
+		"results":       result.Results,
+		"total_savings": result.TotalSavings,
+		"duration_ms":   time.Since(start).Milliseconds(),
+		"created_at":    result.CreatedAt,
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Strategy Comparison Handler ───
+
+func (ns *NegotiationServer) handleCompareStrategies(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	sku := req.GetString("sku", "")
+	rawStrategies, _ := req.GetArguments()["strategies"]
+	var strategies []string
+	if rawStrategies != nil {
+		if arr, ok := rawStrategies.([]any); ok {
+			for _, v := range arr {
+				if s, ok := v.(string); ok {
+					strategies = append(strategies, s)
+				}
+			}
+		}
+	}
+	budget := req.GetFloat("budget", 0)
+
+	ns.logger.Debug("compare_strategies called", "vendor", vendor, "sku", sku, "budget", budget)
+
+	compReq := strategycomparison.StrategyComparisonRequest{
+		Vendor:     vendor,
+		SKU:        sku,
+		Strategies: strategies,
+		Budget:     budget,
+	}
+	result, err := ns.strategyComparisonEng.Compare(ctx, compReq)
+	if err != nil {
+		ns.logger.Warn("compare_strategies failed", "error", err.Error())
+		return mcp.NewToolResultError("Compare strategies failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"vendor":        result.Vendor,
+		"sku":           result.SKU,
+		"budget":        result.Budget,
+		"results":       result.Results,
+		"best_strategy": result.BestStrategy,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }

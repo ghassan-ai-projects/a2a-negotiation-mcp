@@ -70,7 +70,7 @@ func setupTest(t *testing.T) *NegotiationServer {
 	}
 	slaEng := sla.NewEngine(slastore, logger)
 
-	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, heng, nil, slaEng, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, logger)
+	return NewNegotiationServer(pstore, hstore, geng, seng, ceng, heng, nil, slaEng, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, logger)
 }
 
 func seedPricingData(t *testing.T, store *pricing.Store) {
