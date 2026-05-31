@@ -13,6 +13,9 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
@@ -94,10 +97,13 @@ type NegotiationServer struct {
 	workspacesEng *workspaces.Engine
 	auditLogEng    *auditlog.Engine
 	userActivityEng *useractivity.Engine
+	contractTemplatesEng *contracttemplates.Engine
+	contractRiskEng     *contractrisk.Engine
+	scorecardsEng       *scorecards.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -180,6 +186,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 pricingIndexEng: pricingIndexEng,
                 priceChartEng:   priceChartEng,
                 effectivenessEng: effectivenessEng,
+		contractTemplatesEng: contractTemplatesEng,
+		contractRiskEng:     contractRiskEng,
+		scorecardsEng:       scorecardsEng,
 	}
 
 	ns.registerTools()
@@ -656,6 +665,33 @@ func (ns *NegotiationServer) registerTools() {
 
 
         
+
+        // Tool: negotiate_list_contract_templates
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_contract_templates",
+                mcp.WithDescription("List available contract templates, optionally filtered by category."),
+                mcp.WithString("category", mcp.Description("Category filter (optional)")),
+        ), ns.handleListContractTemplates)
+
+        // Tool: negotiate_generate_contract
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_generate_contract",
+                mcp.WithDescription("Generate a contract from a template by filling in vendor name and custom parameters."),
+                mcp.WithString("template_id", mcp.Required(), mcp.Description("Template ID")),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithObject("params", mcp.Description("Custom parameters as key-value object (optional)")),
+        ), ns.handleGenerateContract)
+
+        // Tool: negotiate_contract_risk
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_contract_risk",
+                mcp.WithDescription("Analyze contract text for risky clauses and return a risk report."),
+                mcp.WithString("contract_text", mcp.Required(), mcp.Description("Full contract text to analyze")),
+        ), ns.handleContractRisk)
+
+        // Tool: negotiate_vendor_scorecard
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_scorecard",
+                mcp.WithDescription("Get a vendor scorecard with pricing, reliability, support, and relationship scores."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("period", mcp.Description("Time period: 1y, 90d, 30d (default: 1y)")),
+        ), ns.handleVendorScorecard)
 
 }
 // ─── Tool Handlers ───
@@ -3433,4 +3469,116 @@ func (ns *NegotiationServer) handleUserActivity(ctx context.Context, req mcp.Cal
 		"duration_ms":             time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
+}
+
+
+// --- Contract Template Handlers ---
+
+func (ns *NegotiationServer) handleListContractTemplates(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        category := req.GetString("category", "")
+
+        ns.logger.Debug("list_contract_templates called", "category", category)
+
+        templates, err := ns.contractTemplatesEng.ListTemplates(ctx, category)
+        if err != nil {
+                ns.logger.Warn("list_contract_templates failed", "error", err.Error())
+                return mcp.NewToolResultError("List contract templates failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "templates":   templates,
+                "count":       len(templates),
+                "duration_ms": time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleGenerateContract(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        templateID, _ := req.RequireString("template_id")
+        vendor, _ := req.RequireString("vendor")
+
+        // Parse params map
+        params := map[string]string{}
+        if rawParams, ok := req.GetArguments()["params"]; ok {
+                if paramsMap, ok := rawParams.(map[string]any); ok {
+                        for k, v := range paramsMap {
+                                if s, ok := v.(string); ok {
+                                        params[k] = s
+                                }
+                        }
+                }
+        }
+
+        ns.logger.Debug("generate_contract called", "template_id", templateID, "vendor", vendor)
+
+        contract, err := ns.contractTemplatesEng.GenerateContract(ctx, templateID, vendor, params)
+        if err != nil {
+                ns.logger.Warn("generate_contract failed", "error", err.Error())
+                return mcp.NewToolResultError("Generate contract failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "template_id":    contract.TemplateID,
+                "vendor_name":    contract.VendorName,
+                "content":        contract.Content,
+                "variables_used": contract.VariablesUsed,
+                "duration_ms":    time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+// --- Contract Risk Handler ---
+
+func (ns *NegotiationServer) handleContractRisk(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        contractText, _ := req.RequireString("contract_text")
+
+        ns.logger.Debug("contract_risk called", "text_length", len(contractText))
+
+        report := ns.contractRiskEng.Analyze(contractText)
+
+        resp := map[string]any{
+                "overall_score":    report.OverallScore,
+                "risk_level":       report.RiskLevel,
+                "clauses":          report.Clauses,
+                "recommendations":  report.Recommendations,
+                "duration_ms":      time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
+}
+
+// --- Vendor Scorecard Handler ---
+
+func (ns *NegotiationServer) handleVendorScorecard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+        start := time.Now()
+
+        vendor, _ := req.RequireString("vendor")
+        period := req.GetString("period", "1y")
+
+        ns.logger.Debug("vendor_scorecard called", "vendor", vendor, "period", period)
+
+        scorecard, err := ns.scorecardsEng.Scorecard(ctx, vendor, period)
+        if err != nil {
+                ns.logger.Warn("vendor_scorecard failed", "error", err.Error())
+                return mcp.NewToolResultError("Vendor scorecard failed: " + err.Error()), nil
+        }
+
+        resp := map[string]any{
+                "vendor":             scorecard.Vendor,
+                "period":             scorecard.Period,
+                "overall_score":      scorecard.OverallScore,
+                "pricing_score":      scorecard.PricingScore,
+                "reliability_score":  scorecard.ReliabilityScore,
+                "support_score":      scorecard.SupportScore,
+                "relationship_score": scorecard.RelationshipScore,
+                "trend":              scorecard.Trend,
+                "details":            scorecard.Details,
+                "duration_ms":        time.Since(start).Milliseconds(),
+        }
+        return ns.jsonResult(resp)
 }

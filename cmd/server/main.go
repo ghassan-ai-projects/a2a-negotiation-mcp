@@ -45,6 +45,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -295,7 +298,22 @@ func main() {
 	// Initialize user activity engine (read-only)
 	userActivityEng := useractivity.NewEngine(pricingStore.DB(), logger)
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, logger)
+	// Initialize contract templates store and engine
+	contractTemplatesStore, err := contracttemplates.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize contract templates store", "error", err.Error())
+		os.Exit(1)
+	}
+	contractTemplatesEng := contracttemplates.NewEngine(contractTemplatesStore, logger)
+
+	// Initialize contract risk engine (no store needed)
+	contractRiskEng := contractrisk.NewEngine()
+
+	// Initialize scorecards engine (read-only, uses deal_outcomes, vendor_health, sla_breaches)
+	scorecardsEng := scorecards.NewEngine(pricingStore.DB(), logger)
+
+
+negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())
