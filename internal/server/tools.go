@@ -10,9 +10,12 @@ import (
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/a2a"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/benchmark"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budget"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/effectiveness"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/export"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorspend"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notify"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/winloss"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/gamification"
@@ -64,10 +67,13 @@ type NegotiationServer struct {
         winlossEng      *winloss.Engine
         exportEng        *export.Engine
         notifyEng        *notify.Engine
+        budgetEng        *budget.Engine
+        vendorspendEng   *vendorspend.Engine
+        effectivenessEng *effectiveness.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -77,6 +83,8 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 	} else {
 		eng.SetLearningEngine(learningEng)
 	}
+
+	budgetEng := budget.NewEngine(budgetStore, pricingStore.DB(), logger)
 
 	ns := &NegotiationServer{
 		mcpServer: mcpserver.NewMCPServer(
@@ -109,6 +117,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 healthEng:      healthEngine,
                 slaEng:         slaEngine,
                 webhookEng:     webhookEng,
+                budgetEng:      budgetEng,
+                vendorspendEng:   vendorspendEng,
+                effectivenessEng: effectivenessEng,
 	}
 
 	ns.registerTools()
@@ -489,6 +500,40 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithString("message", mcp.Required(), mcp.Description("Notification message body")),
                 mcp.WithString("priority", mcp.Description("Priority: low, normal, high, urgent (default: normal)")),
         ), ns.handleSendNotification)
+
+        // Tool 5i: negotiate_budget_dashboard
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_budget_dashboard",
+                mcp.WithDescription("Get budget vs actual spend dashboard. Shows variance, monthly trends, and overspend warnings."),
+                mcp.WithString("period", mcp.Description("Period: monthly, quarterly, yearly (default: monthly)")),
+        ), ns.handleBudgetDashboard)
+
+        // Tool 5j: negotiate_set_budget
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_budget",
+                mcp.WithDescription("Set or update a budget for a vendor."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithNumber("budget_amount", mcp.Required(), mcp.Description("Budget amount")),
+                mcp.WithString("period_month", mcp.Description("Period month (YYYY-MM, optional)")),
+        ), ns.handleSetBudget)
+
+        // Tool 5k: negotiate_delete_budget
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_delete_budget",
+                mcp.WithDescription("Delete a budget for a vendor."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+        ), ns.handleDeleteBudget)
+
+        // Tool 5l: negotiate_vendor_spend
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_spend",
+                mcp.WithDescription("Get vendor spend analytics. Aggregates deal outcomes by vendor with spend percentage, monthly trends, and YoY comparison."),
+                mcp.WithString("vendor", mcp.Description("Filter by vendor name (optional)")),
+                mcp.WithString("period", mcp.Description("Period: 30d, 90d, 1y (default: 1y)")),
+        ), ns.handleVendorSpend)
+
+        // Tool 5m: negotiate_effectiveness_score
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_effectiveness_score",
+                mcp.WithDescription("Get negotiation effectiveness score (0-100) with component breakdown, trend, and improvement tips."),
+                mcp.WithString("user_id", mcp.Description("User ID for streak info (optional)")),
+                mcp.WithString("period", mcp.Description("Period: 30d, 90d, 1y (default: 90d)")),
+        ), ns.handleEffectivenessScore)
 
 }
 // ─── Tool Handlers ───
@@ -2633,6 +2678,136 @@ func (ns *NegotiationServer) handleSendNotification(ctx context.Context, req mcp
 		"status":     n.Status,
 		"created_at": n.CreatedAt.Format(time.RFC3339),
 		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Budget Dashboard Handlers ───
+
+func (ns *NegotiationServer) handleBudgetDashboard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	period := req.GetString("period", "monthly")
+
+	ns.logger.Debug("budget_dashboard called", "period", period)
+
+	dash, err := ns.budgetEng.Dashboard(ctx, period)
+	if err != nil {
+		ns.logger.Warn("budget_dashboard failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Budget dashboard failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"period":        dash.Period,
+		"total_budget":  dash.TotalBudget,
+		"total_actual":  dash.TotalActual,
+		"variance":      dash.Variance,
+		"variance_pct":  dash.VariancePct,
+		"by_vendor":     dash.ByVendor,
+		"monthly_trend": dash.MonthlyTrend,
+		"warnings":      dash.Warnings,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSetBudget(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	budgetAmount := req.GetFloat("budget_amount", 0)
+	periodMonth := req.GetString("period_month", "")
+
+	ns.logger.Debug("set_budget called", "vendor", vendor, "amount", budgetAmount)
+
+	if err := ns.budgetEng.Store().SetBudget(ctx, vendor, budgetAmount, periodMonth); err != nil {
+		ns.logger.Warn("set_budget failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Set budget failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":      vendor,
+		"budget":      budgetAmount,
+		"status":      "set",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleDeleteBudget(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+
+	ns.logger.Debug("delete_budget called", "vendor", vendor)
+
+	if err := ns.budgetEng.Store().DeleteBudget(ctx, vendor); err != nil {
+		ns.logger.Warn("delete_budget failed", "vendor", vendor, "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Delete budget failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"vendor":      vendor,
+		"status":      "deleted",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Vendor Spend Handler ───
+
+func (ns *NegotiationServer) handleVendorSpend(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor := req.GetString("vendor", "")
+	period := req.GetString("period", "1y")
+
+	ns.logger.Debug("vendor_spend called", "vendor", vendor, "period", period)
+
+	report, err := ns.vendorspendEng.Report(ctx, vendor, period)
+	if err != nil {
+		ns.logger.Warn("vendor_spend failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Vendor spend report failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"period":        report.Period,
+		"total_spend":   report.TotalSpend,
+		"vendors":       report.Vendors,
+		"subscriptions": report.Subscriptions,
+		"by_vendor":     report.ByVendor,
+		"monthly_trend": report.MonthlyTrend,
+		"yoy_change_pct": report.YoYChangePct,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── Effectiveness Score Handler ───
+
+func (ns *NegotiationServer) handleEffectivenessScore(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	userID := req.GetString("user_id", "")
+	period := req.GetString("period", "90d")
+
+	ns.logger.Debug("effectiveness_score called", "user_id", userID, "period", period)
+
+	score, err := ns.effectivenessEng.Score(ctx, userID, period)
+	if err != nil {
+		ns.logger.Warn("effectiveness_score failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Effectiveness score failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"user_id":       score.UserID,
+		"period":        score.Period,
+		"overall_score": score.OverallScore,
+		"components":    score.Components,
+		"trend":         score.Trend,
+		"vs_average":    score.VsAverage,
+		"tips":          score.Tips,
+		"duration_ms":   time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
