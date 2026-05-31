@@ -69,6 +69,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apikeyrotation"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
@@ -143,6 +144,7 @@ type NegotiationServer struct {
 	apiDocsEng     *apidocs.Engine
 	toolStatsEng    *toolstats.Engine
 	healthCheckEng  *healthcheck.Engine
+	apiKeyRotateEng *apikeyrotation.Engine
 	autocompleteEng *autocomplete.Engine
 	metricsEng      *metrics.Engine
 	shutdownEng     *shutdown.Engine
@@ -152,7 +154,7 @@ type NegotiationServer struct {
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -259,6 +261,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		coverageEng:     coverageEng,
 		dependencyEng:   dependencyEng,
 		contribguideEng: contribguideEng,
+		apiKeyRotateEng: apiKeyRotateEng,
 	}
 
 	ns.registerTools()
@@ -1025,6 +1028,17 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_contribution_guide",
 		mcp.WithDescription("Generate a CONTRIBUTING.md guide based on the project's structure. Includes setup, build, test, and conventions."),
 	), ns.handleContributionGuide)
+
+	// Tool: negotiate_rotate_key
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_rotate_key",
+		mcp.WithDescription("Rotate an API key — revokes the existing key and generates a new replacement key."),
+		mcp.WithString("key_id", mcp.Required(), mcp.Description("ID of the API key to rotate")),
+	), ns.handleRotateKey)
+
+	// Tool: negotiate_key_health
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_key_health",
+		mcp.WithDescription("Retrieve the health status of all API keys — includes status, owner, creation date, expiry, and last rotation."),
+	), ns.handleKeyHealth)
 }
 
 // ─── Tool Handlers ───
@@ -4922,6 +4936,56 @@ func (ns *NegotiationServer) handleContributionGuide(ctx context.Context, req mc
 	resp := map[string]any{
 		"content":   guide.Content,
 		"sections":  guide.Sections,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRotateKey(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	keyID, err := req.RequireString("key_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: key_id"), nil
+	}
+
+	ns.logger.Info("negotiate_rotate_key called", "key_id", keyID)
+
+	if ns.apiKeyRotateEng == nil {
+		return mcp.NewToolResultError("API key rotation engine is not available"), nil
+	}
+
+	result, err := ns.apiKeyRotateEng.RotateKey(keyID)
+	if err != nil {
+		ns.logger.Warn("negotiate_rotate_key failed", "error", err.Error())
+		return mcp.NewToolResultError("Key rotation failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"old_key_id":  result.OldKeyID,
+		"new_key_id":  result.NewKeyID,
+		"status":      result.Status,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleKeyHealth(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ns.logger.Info("negotiate_key_health called")
+
+	if ns.apiKeyRotateEng == nil {
+		return mcp.NewToolResultError("API key rotation engine is not available"), nil
+	}
+
+	keys, err := ns.apiKeyRotateEng.KeyHealth()
+	if err != nil {
+		ns.logger.Warn("negotiate_key_health failed", "error", err.Error())
+		return mcp.NewToolResultError("Key health check failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"keys":        keys,
+		"total":       len(keys),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
