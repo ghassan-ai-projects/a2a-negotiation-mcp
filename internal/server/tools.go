@@ -42,6 +42,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/history"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/industryreports"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorknowledge"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/learning"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/limitedoffer"
@@ -168,10 +169,11 @@ type NegotiationServer struct {
 	aiPerfStore           *aiperformance.Store
 	modelABTestEng        *modelabtesting.Engine
 	promptsStore          *prompts.Store
+	vendorKnowledgeStore *vendorknowledge.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -287,6 +289,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		aiPerfStore:           aiPerfStore,
 		modelABTestEng:        modelABTestEng,
 		promptsStore:          promptsStore,
+		vendorKnowledgeStore:  vendorKnowledgeStore,
 	}
 
 	ns.registerTools()
@@ -1121,6 +1124,28 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithDescription("Get details of a saved industry report by ID."),
 		mcp.WithInteger("report_id", mcp.Required(), mcp.Description("Report ID")),
 	), ns.handleGetReport)
+
+
+        // Tool: negotiate_ingest_document
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_ingest_document",
+                mcp.WithDescription("Ingest a vendor document into the knowledge base for RAG search."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("content", mcp.Required(), mcp.Description("Document content")),
+                mcp.WithString("doc_type", mcp.Required(), mcp.Description("Document type (e.g. contract, compliance, report)")),
+        ), ns.handleIngestDocument)
+
+        // Tool: negotiate_search_vendor_docs
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_search_vendor_docs",
+                mcp.WithDescription("Search vendor knowledge documents by vendor and query text."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("query", mcp.Required(), mcp.Description("Search query text")),
+        ), ns.handleSearchVendorDocs)
+
+        // Tool: negotiate_vendor_knowledge_report
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_vendor_knowledge_report",
+                mcp.WithDescription("Get a knowledge report summary for a vendor, including total docs and doc type breakdown."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+        ), ns.handleVendorKnowledgeReport)
 
 	// Tool: negotiate_ai_performance
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_ai_performance",
@@ -5565,4 +5590,88 @@ func (ns *NegotiationServer) handleModelABTest(ctx context.Context, req mcp.Call
 		"duration_ms":            time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
+}
+
+// ─── P87: Vendor Knowledge Base Handlers ───
+
+func (ns *NegotiationServer) handleIngestDocument(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, err := req.RequireString("vendor")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: vendor"), nil
+	}
+	content, err := req.RequireString("content")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: content"), nil
+	}
+	docType, err := req.RequireString("doc_type")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: doc_type"), nil
+	}
+
+	ns.logger.Debug("negotiate_ingest_document called", "vendor", vendor, "doc_type", docType)
+
+	doc, err := ns.vendorKnowledgeStore.IngestDocument(ctx, vendor, content, docType)
+	if err != nil {
+		ns.logger.Warn("negotiate_ingest_document failed", "error", err.Error())
+		return mcp.NewToolResultError("Ingest document failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          doc.ID,
+		"vendor":      doc.Vendor,
+		"doc_type":    doc.DocType,
+		"created_at":  doc.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSearchVendorDocs(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, err := req.RequireString("vendor")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: vendor"), nil
+	}
+	query, err := req.RequireString("query")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: query"), nil
+	}
+
+	ns.logger.Debug("negotiate_search_vendor_docs called", "vendor", vendor, "query", query)
+
+	docs, err := ns.vendorKnowledgeStore.SearchDocs(ctx, vendor, query)
+	if err != nil {
+		ns.logger.Warn("negotiate_search_vendor_docs failed", "error", err.Error())
+		return mcp.NewToolResultError("Search vendor docs failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"docs":        docs,
+		"total":       len(docs),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleVendorKnowledgeReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, err := req.RequireString("vendor")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: vendor"), nil
+	}
+
+	ns.logger.Debug("negotiate_vendor_knowledge_report called", "vendor", vendor)
+
+	report, err := ns.vendorKnowledgeStore.GetKnowledgeReport(ctx, vendor)
+	if err != nil {
+		ns.logger.Warn("negotiate_vendor_knowledge_report failed", "error", err.Error())
+		return mcp.NewToolResultError("Vendor knowledge report failed: " + err.Error()), nil
+	}
+
+	report["duration_ms"] = time.Since(start).Milliseconds()
+	return ns.jsonResult(report)
 }
