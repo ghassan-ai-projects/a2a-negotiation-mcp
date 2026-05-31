@@ -44,6 +44,9 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/vendorcomparison"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchnegotiation"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -88,10 +91,13 @@ type NegotiationServer struct {
 	vendorComparisonEng    *vendorcomparison.Engine
 	batchNegotiationEng    *batchnegotiation.Engine
 	strategyComparisonEng  *strategycomparison.Engine
+	workspacesEng *workspaces.Engine
+	auditLogEng    *auditlog.Engine
+	userActivityEng *useractivity.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -3276,6 +3282,155 @@ func (ns *NegotiationServer) handleCompareStrategies(ctx context.Context, req mc
 		"results":       result.Results,
 		"best_strategy": result.BestStrategy,
 		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+
+// --- Workspace Handlers ---
+
+func (ns *NegotiationServer) handleCreateWorkspace(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	name, _ := req.RequireString("name")
+	description := req.GetString("description", "")
+
+	ns.logger.Debug("create_workspace called", "name", name)
+
+	ws, err := ns.workspacesEng.Create(ctx, name, description)
+	if err != nil {
+		ns.logger.Warn("create_workspace failed", "error", err.Error())
+		return mcp.NewToolResultError("Create workspace failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          ws.ID,
+		"name":        ws.Name,
+		"description": ws.Description,
+		"created_at":  ws.CreatedAt.Format(time.RFC3339),
+		"updated_at":  ws.UpdatedAt.Format(time.RFC3339),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListWorkspaces(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("list_workspaces called")
+
+	workspaces, err := ns.workspacesEng.List(ctx)
+	if err != nil {
+		ns.logger.Warn("list_workspaces failed", "error", err.Error())
+		return mcp.NewToolResultError("List workspaces failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"workspaces":  workspaces,
+		"count":       len(workspaces),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleWorkspaceSummary(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	workspaceID, _ := req.RequireString("workspace_id")
+
+	ns.logger.Debug("workspace_summary called", "workspace_id", workspaceID)
+
+	summary, err := ns.workspacesEng.Summary(ctx, workspaceID)
+	if err != nil {
+		ns.logger.Warn("workspace_summary failed", "error", err.Error())
+		return mcp.NewToolResultError("Workspace summary failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"workspace_id":  summary.ID,
+		"name":          summary.Name,
+		"vendor_count":  summary.VendorCount,
+		"deal_count":    summary.DealCount,
+		"total_savings": summary.TotalSavings,
+		"member_count":  summary.MemberCount,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// --- Audit Log Handlers ---
+
+func (ns *NegotiationServer) handleAuditLog(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	action := req.GetString("action", "")
+	userID := req.GetString("user_id", "")
+	limit := int(req.GetInt("limit", 50))
+	since := req.GetString("since", "")
+
+	ns.logger.Debug("audit_log called", "action", action, "user_id", userID, "limit", limit)
+
+	entries, err := ns.auditLogEng.Search(ctx, action, userID, limit, since)
+	if err != nil {
+		ns.logger.Warn("audit_log failed", "error", err.Error())
+		return mcp.NewToolResultError("Audit log failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"entries":     entries,
+		"count":       len(entries),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAuditSummary(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("audit_summary called")
+
+	summary, err := ns.auditLogEng.Summary(ctx)
+	if err != nil {
+		ns.logger.Warn("audit_summary failed", "error", err.Error())
+		return mcp.NewToolResultError("Audit summary failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"total_actions": summary.TotalActions,
+		"by_action":     summary.ByAction,
+		"by_day":        summary.ByDay,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// --- User Activity Handlers ---
+
+func (ns *NegotiationServer) handleUserActivity(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	userID := req.GetString("user_id", "")
+	period := req.GetString("period", "30d")
+
+	ns.logger.Debug("user_activity called", "user_id", userID, "period", period)
+
+	report, err := ns.userActivityEng.Report(ctx, userID, period)
+	if err != nil {
+		ns.logger.Warn("user_activity failed", "error", err.Error())
+		return mcp.NewToolResultError("User activity failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"user_id":                 report.UserID,
+		"period":                  report.Period,
+		"total_sessions":          report.TotalSessions,
+		"completed_negotiations":  report.CompletedNegotiations,
+		"total_savings":           report.TotalSavings,
+		"active_days":             report.ActiveDays,
+		"last_active":             report.LastActive,
+		"favorite_strategies":     report.FavoriteStrategies,
+		"top_vendors":             report.TopVendors,
+		"duration_ms":             time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
