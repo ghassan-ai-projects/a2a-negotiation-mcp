@@ -71,6 +71,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/summarizer"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
@@ -170,10 +171,11 @@ type NegotiationServer struct {
 	modelABTestEng        *modelabtesting.Engine
 	promptsStore          *prompts.Store
 	vendorKnowledgeStore *vendorknowledge.Store
+        summarizerEng *summarizer.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -290,6 +292,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		modelABTestEng:        modelABTestEng,
 		promptsStore:          promptsStore,
 		vendorKnowledgeStore:  vendorKnowledgeStore,
+                summarizerEng:  summarizerEng,
 	}
 
 	ns.registerTools()
@@ -1157,6 +1160,13 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithBoolean("success", mcp.Required(), mcp.Description("Whether the call was successful")),
 		mcp.WithString("negotiation_type", mcp.Description("Type of negotiation (e.g. price_query, create_session, strategy)")),
 	), ns.handleAIPerformance)
+
+        // Tool: negotiate_summarize_session
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_summarize_session",
+                mcp.WithDescription("Generate a concise summary of a completed negotiation session. Supports brief, detailed, and bullet_points styles."),
+                mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID from negotiate_create_session")),
+                mcp.WithString("style", mcp.Description("Summary style: brief, detailed, or bullet_points (default: bullet_points)")),
+        ), ns.handleSummarizeSession)
 }
 
 // ─── Tool Handlers ───
@@ -5674,4 +5684,38 @@ func (ns *NegotiationServer) handleVendorKnowledgeReport(ctx context.Context, re
 
 	report["duration_ms"] = time.Since(start).Milliseconds()
 	return ns.jsonResult(report)
+}
+
+// ─── P88: Summarize Session Handler ───
+
+func (ns *NegotiationServer) handleSummarizeSession(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	sessionID, err := req.RequireString("session_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: session_id"), nil
+	}
+	style := req.GetString("style", "bullet_points")
+
+	ns.logger.Debug("negotiate_summarize_session called", "session_id", sessionID, "style", style)
+
+	if ns.summarizerEng == nil {
+		return mcp.NewToolResultError("Summarizer engine is not available"), nil
+	}
+
+	result, err := ns.summarizerEng.Summarize(ctx, sessionID, style)
+	if err != nil {
+		ns.logger.Warn("negotiate_summarize_session failed", "error", err.Error())
+		return mcp.NewToolResultError("Summarize session failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"session_id": result.SessionID,
+		"summary":    result.Summary,
+		"word_count": result.WordCount,
+		"style":      result.Style,
+		"key_points": result.KeyPoints,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }

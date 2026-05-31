@@ -68,6 +68,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sell"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/summarizer"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sla"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slack"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
@@ -490,9 +491,10 @@ func main() {
 	}
 
 	trainingEng := training.NewEngine()
+        summarizerEng := summarizer.NewEngine()
 	modelABTestEng := modelabtesting.NewEngine()
 
-	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, logger)
+	negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, coverageEng, dependencyEng, contribguideEng, apiKeyRotateEng, ipWhitelistEng, dataRetentionEng, playbookEng, trainingEng, industryReportsStore, aiPerfStore, promptsStore, modelABTestEng, vendorKnowledgeStore, summarizerEng, logger)
 
 	// Initialize gamification store and engine (for streaks, leaderboard, badges)
 	gamifStore, err := gamification.NewStore(pricingStore.DB())
