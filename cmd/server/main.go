@@ -66,6 +66,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -426,7 +429,16 @@ func main() {
 	// Initialize health check engine (P71)
 	healthCheckEng := healthcheck.NewEngine(pricingStore.DB(), 0, time.Now(), *dbPath)
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, logger)
+	// Initialize autocomplete engine (P72)
+	autocompleteEng := autocomplete.NewEngine(nil) // set after negServer creation since mcpServer isn't available yet
+
+	// Initialize metrics engine (P73)
+	metricsEng := metrics.NewEngine(historyStore)
+
+	// Initialize shutdown engine (P74)
+	shutdownEng := shutdown.NewEngine()
+
+negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, apiDocsEng, toolStatsEng, healthCheckEng, autocompleteEng, metricsEng, shutdownEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())
@@ -439,6 +451,8 @@ negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine
 
 	// Set the MCP server on the API docs engine (needed to enumerate tools)
 	apiDocsEng = apidocs.NewEngine(negServer.MCPServer())
+	// Set the MCP server on the autocomplete engine (needed to enumerate tools)
+	autocompleteEng = autocomplete.NewEngine(negServer.MCPServer())
 	// Update healthcheck with actual tool count after all tools are registered
 	healthCheckEng.SetToolCount(len(negServer.MCPServer().ListTools()))
 

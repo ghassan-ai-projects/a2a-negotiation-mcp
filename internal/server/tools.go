@@ -68,6 +68,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apidocs"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/healthcheck"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -136,10 +139,13 @@ type NegotiationServer struct {
 	apiDocsEng     *apidocs.Engine
 	toolStatsEng    *toolstats.Engine
 	healthCheckEng  *healthcheck.Engine
+	autocompleteEng *autocomplete.Engine
+	metricsEng      *metrics.Engine
+	shutdownEng     *shutdown.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -240,6 +246,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		apiDocsEng:     apiDocsEng,
 		toolStatsEng:    toolStatsEng,
 		healthCheckEng:  healthCheckEng,
+		autocompleteEng: autocompleteEng,
+		metricsEng:      metricsEng,
+		shutdownEng:     shutdownEng,
 	}
 
 	ns.registerTools()
@@ -975,6 +984,21 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_health",
 		mcp.WithDescription("Get server health status including database connectivity, tool count, DB size, and uptime."),
 	), ns.handleHealth)
+	// Tool: negotiate_cli_autocomplete
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_cli_autocomplete",
+		mcp.WithDescription("Generate shell completion script for the a2a-cli command. Supports bash and zsh shells."),
+		mcp.WithString("shell", mcp.Description("Target shell: bash or zsh (default: bash)")),
+	), ns.handleCLIAutocomplete)
+
+	// Tool: negotiate_metrics
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_metrics",
+		mcp.WithDescription("Generate Prometheus-format metrics for the negotiation server. Includes negotiation totals, deal counts, savings, and active sessions."),
+	), ns.handleMetrics)
+
+	// Tool: negotiate_shutdown
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_shutdown",
+		mcp.WithDescription("Perform graceful shutdown of the negotiation server. Closes database connections and other resources."),
+	), ns.handleShutdown)
 }
 
 // ─── Tool Handlers ───
@@ -4745,3 +4769,57 @@ func (ns *NegotiationServer) handleHealth(ctx context.Context, req mcp.CallToolR
 	return ns.jsonResult(resp)
 }
 
+
+func (ns *NegotiationServer) handleCLIAutocomplete(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	shell := req.GetString("shell", "bash")
+
+	ns.logger.Debug("negotiate_cli_autocomplete called", "shell", shell)
+
+	script := ns.autocompleteEng.Generate(shell)
+
+	resp := map[string]any{
+		"content": script.Content,
+		"shell":   script.Shell,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleMetrics(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("negotiate_metrics called")
+
+	payload, err := ns.metricsEng.Generate(ctx)
+	if err != nil {
+		ns.logger.Warn("negotiate_metrics failed", "error", err.Error())
+		return mcp.NewToolResultError("Metrics generation failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"content":   payload.Content,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleShutdown(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	ns.logger.Debug("negotiate_shutdown called")
+
+		// Collect closable stores
+	var stores []shutdown.Closable
+	if ns.pricingStore != nil {
+		stores = append(stores, ns.pricingStore)
+	}
+
+	result := ns.shutdownEng.Shutdown(ns.pricingStore.DB(), stores)
+
+	resp := map[string]any{
+		"status":             result.Status,
+		"resources_cleaned":  result.ResourcesCleaned,
+		"duration_ms":        result.DurationMs,
+	}
+	return ns.jsonResult(resp)
+}
