@@ -240,7 +240,7 @@ func main() {
 	}
 
 	// Initialize trends store (shares the same DB)
-		rendsStore, err := trends.NewStore(pricingStore.DB())
+		trendsStore, err := trends.NewStore(pricingStore.DB())
 	if err != nil {
 		logger.Error("failed to initialize trends store", "error", err.Error())
 		os.Exit(1)
@@ -411,7 +411,7 @@ func main() {
 	savingsRealizationEng := savingsrealization.NewEngine(savingsrealizationStore, logger)
 
 	// Initialize TCO engine (P60)
-		coEng := tco.NewEngine(pricingStore)
+		tcoEng := tco.NewEngine(pricingStore)
 
 	// Initialize data import engine (P61)
 	dataImportEng := dataimport.NewEngine(pricingStore, historyStore)
@@ -453,12 +453,12 @@ func main() {
 	rateLimitDashEng := ratelimitdashboard.NewEngine(rateLimitDashStore, logger)
 
 	// Initialize tool stats store (P70)
-		oolStatsStore, err := toolstats.NewStore(pricingStore.DB())
+		toolStatsStore, err := toolstats.NewStore(pricingStore.DB())
 	if err != nil {
 		logger.Error("failed to initialize tool stats store", "error", err.Error())
 		os.Exit(1)
 	}
-		oolStatsEng := toolstats.NewEngine(toolStatsStore)
+		toolStatsEng := toolstats.NewEngine(toolStatsStore)
 
 	// Initialize API docs engine (P69)
 	apiDocsEng := apidocs.NewEngine(nil) // set after negServer creation since mcpServer isn't available yet
@@ -500,7 +500,7 @@ func main() {
 		os.Exit(1)
 	}
 
-		oolBillingStore, err := toolbilling.NewStore(pricingStore.DB())
+		toolBillingStore, err := toolbilling.NewStore(pricingStore.DB())
 
 	sandboxStore, err := sandbox.NewStore(pricingStore.DB())
 	if err != nil {
@@ -516,7 +516,7 @@ func main() {
 	// Initialize scheduler store (shares the same DB)
 	schedulerStore, err := scheduler.NewStore(pricingStore.DB())
 
-		riggerStore, err := autotrigger.NewStore(pricingStore.DB())
+		triggerStore, err := autotrigger.NewStore(pricingStore.DB())
 	if err != nil {
 		logger.Error("failed to initialize autotrigger store", "error", err.Error())
 		os.Exit(1)
@@ -554,13 +554,13 @@ func main() {
 		os.Exit(1)
 	}
 
-		rainingEng := training.NewEngine()
+		trainingEng := training.NewEngine()
         summarizerEng := summarizer.NewEngine()
 	modelABTestEng := modelabtesting.NewEngine()
 	sentimentEng := sentiment.NewEngine()
 
-		ranslationStore, _ := translation.NewStore(pricingStore.DB())
-		ranslationEng := translation.NewEngine()
+		translationStore, _ := translation.NewStore(pricingStore.DB())
+		translationEng := translation.NewEngine()
 
 	complianceEng := compliance.NewEngine()
 
