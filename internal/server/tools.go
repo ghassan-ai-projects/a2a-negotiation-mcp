@@ -59,6 +59,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -116,12 +119,15 @@ type NegotiationServer struct {
 	spendingCapsEng        *spendingcaps.Engine
 	savingsRealizationEng *savingsrealization.Engine
 	tcoEng              *tco.Engine
+	alertHistoryEng *alerthistory.Engine
+	slaCreditEng     *slacredit.Engine
+	commLogEng       *commlog.Engine
 	dataImportEng       *dataimport.Engine
 	costAllocationEng   *costallocation.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -213,6 +219,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		budgetMgmtEng:        budgetMgmtEng,
 		spendingCapsEng:        spendingCapsEng,
 		savingsRealizationEng: savingsRealizationEng,
+		alertHistoryEng: alertHistoryEng,
+		slaCreditEng:     slaCreditEng,
+		commLogEng:       commLogEng,
 	}
 
 	ns.registerTools()
@@ -866,6 +875,40 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y (default 90d)")),
         ), ns.handleCostAllocationReport)
 
+	// Tool: negotiate_alert_history
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_alert_history",
+		mcp.WithDescription("Retrieve merged alert feed from budget, renewal, and price change sources."),
+		mcp.WithString("type", mcp.Description("Alert type filter: all, budget, renewal, price_change (default all)")),
+		mcp.WithString("vendor", mcp.Description("Filter by vendor")),
+		mcp.WithInteger("limit", mcp.Description("Max results (default 50)")),
+	), ns.handleAlertHistory)
+
+	// Tool: negotiate_sla_credit
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_sla_credit",
+		mcp.WithDescription("Calculate SLA credit eligibility and amount for a vendor service."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("service", mcp.Required(), mcp.Description("Service name")),
+		mcp.WithNumber("monthly_spend", mcp.Required(), mcp.Description("Monthly spend amount")),
+		mcp.WithNumber("uptime_pct", mcp.Required(), mcp.Description("Actual uptime percentage")),
+		mcp.WithNumber("guaranteed_uptime", mcp.Description("Guaranteed uptime percentage (default 99.9)")),
+		mcp.WithNumber("credit_rate", mcp.Description("Credit rate percentage (default 5)")),
+	), ns.handleSLACredit)
+
+	// Tool: negotiate_log_communication
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_log_communication",
+		mcp.WithDescription("Log a vendor communication entry."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithString("type", mcp.Required(), mcp.Description("Communication type (email, call, meeting, etc.)")),
+		mcp.WithString("summary", mcp.Required(), mcp.Description("Brief summary")),
+		mcp.WithString("detail", mcp.Description("Detailed notes")),
+	), ns.handleLogCommunication)
+
+	// Tool: negotiate_communication_history
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_communication_history",
+		mcp.WithDescription("Retrieve communication history for a vendor."),
+		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+		mcp.WithInteger("limit", mcp.Description("Max results (default 20)")),
+	), ns.handleCommunicationHistory)
 }
 // ─── Tool Handlers ───
 
@@ -4317,6 +4360,120 @@ func (ns *NegotiationServer) handleCostAllocationReport(ctx context.Context, req
 		"by_department":     report.ByDepartment,
 		"by_vendor_per_dept": report.ByVendorDept,
 		"duration_ms":       time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAlertHistory(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	typeFilter := req.GetString("type", "all")
+	vendorFilter := req.GetString("vendor", "")
+	limit := int(req.GetInt("limit", 50))
+
+	ns.logger.Debug("alert_history called", "type", typeFilter, "vendor", vendorFilter, "limit", limit)
+
+	feed, err := ns.alertHistoryEng.GetAlerts(ctx, typeFilter, vendorFilter, limit)
+	if err != nil {
+		ns.logger.Warn("alert_history failed", "error", err.Error())
+		return mcp.NewToolResultError("Alert history failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"entries":   feed.Entries,
+		"grouped":   feed.Grouped,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleSLACredit(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	service, _ := req.RequireString("service")
+	monthlySpend := req.GetFloat("monthly_spend", 0)
+	uptimePct := req.GetFloat("uptime_pct", 0)
+	guaranteedUptime := req.GetFloat("guaranteed_uptime", 99.9)
+	creditRate := req.GetFloat("credit_rate", 5)
+
+	ns.logger.Debug("sla_credit called", "vendor", vendor, "service", service)
+
+	if vendor == "" || service == "" {
+		return mcp.NewToolResultError("vendor and service are required"), nil
+	}
+
+	input := &slacredit.SLACreditInput{
+		Vendor:           vendor,
+		Service:          service,
+		MonthlySpend:     monthlySpend,
+		UptimePct:        uptimePct,
+		GuaranteedUptime: guaranteedUptime,
+		CreditRate:       creditRate,
+	}
+
+	output := ns.slaCreditEng.Calculate(input)
+
+	resp := map[string]any{
+		"vendor":            output.Vendor,
+		"service":           output.Service,
+		"monthly_spend":     output.MonthlySpend,
+		"actual_uptime":     output.ActualUptime,
+		"guaranteed_uptime": output.GuaranteedUptime,
+		"credit_rate":       output.CreditRate,
+		"credit_amount":     output.CreditAmount,
+		"eligible":          output.Eligible,
+		"duration_ms":       time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleLogCommunication(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	commType, _ := req.RequireString("type")
+	summary, _ := req.RequireString("summary")
+	detail := req.GetString("detail", "")
+
+	ns.logger.Debug("log_communication called", "vendor", vendor, "type", commType)
+
+	entry, err := ns.commLogEng.Log(ctx, vendor, commType, summary, detail)
+	if err != nil {
+		ns.logger.Warn("log_communication failed", "error", err.Error())
+		return mcp.NewToolResultError("Log communication failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":         entry.ID,
+		"vendor":     entry.Vendor,
+		"comm_type":  entry.CommType,
+		"summary":    entry.Summary,
+		"detail":     entry.Detail,
+		"created_at": entry.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCommunicationHistory(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	limit := int(req.GetInt("limit", 20))
+
+	ns.logger.Debug("communication_history called", "vendor", vendor, "limit", limit)
+
+	result, err := ns.commLogEng.History(ctx, vendor, limit)
+	if err != nil {
+		ns.logger.Warn("communication_history failed", "error", err.Error())
+		return mcp.NewToolResultError("Communication history failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"entries":     result.Entries,
+		"total_count": result.TotalCount,
+		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
