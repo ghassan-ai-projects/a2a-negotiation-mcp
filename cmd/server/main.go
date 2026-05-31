@@ -54,6 +54,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -356,7 +359,21 @@ func main() {
 	if err != nil { logger.Error("savingsrealization store", "error", err); os.Exit(1) }
 	savingsRealizationEng := savingsrealization.NewEngine(savingsrealizationStore, logger)
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, logger)
+	// Initialize TCO engine (P60)
+	tcoEng := tco.NewEngine(pricingStore)
+
+	// Initialize data import engine (P61)
+	dataImportEng := dataimport.NewEngine(pricingStore, historyStore)
+
+	// Initialize cost allocation store and engine (P62)
+	costAllocationStore, err := costallocation.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize cost allocation store", "error", err.Error())
+		os.Exit(1)
+	}
+	costAllocationEng := costallocation.NewEngine(costAllocationStore, pricingStore.DB())
+
+negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())

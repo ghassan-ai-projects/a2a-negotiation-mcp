@@ -56,6 +56,9 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/savingsrealization"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dataimport"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/costallocation"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -112,10 +115,13 @@ type NegotiationServer struct {
 	budgetMgmtEng        *budgetmgmt.Engine
 	spendingCapsEng        *spendingcaps.Engine
 	savingsRealizationEng *savingsrealization.Engine
+	tcoEng              *tco.Engine
+	dataImportEng       *dataimport.Engine
+	costAllocationEng   *costallocation.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -824,6 +830,41 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_pending_approvals",
 		mcp.WithDescription("List all pending approval requests."),
 	), ns.handlePendingApprovals)
+
+        // Tool: negotiate_tco
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_tco",
+                mcp.WithDescription("Calculate Total Cost of Ownership for a SaaS vendor product. Returns per-unit cost, annual subscription, 1y/3y TCO, cost per user per month, market comparison, and flagged hidden costs."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
+                mcp.WithInteger("seats", mcp.Description("Number of seats (default 50)")),
+                mcp.WithInteger("term_months", mcp.Description("Contract term in months (default 12)")),
+                mcp.WithNumber("implementation_costs", mcp.Description("One-time implementation costs (default 0)")),
+                mcp.WithNumber("training_costs", mcp.Description("Training costs (default 0)")),
+                mcp.WithNumber("support_costs", mcp.Description("Support costs (default 0)")),
+        ), ns.handleTCO)
+
+        // Tool: negotiate_import_data
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_import_data",
+                mcp.WithDescription("Import deals or pricing data from JSON. Supports validate mode (dry-run preview) and import mode (inserts records)."),
+                mcp.WithString("type", mcp.Required(), mcp.Description("Data type: deals or pricing")),
+                mcp.WithString("data", mcp.Required(), mcp.Description("JSON array of records to import")),
+                mcp.WithString("mode", mcp.Description("Import mode: validate or import (default import)")),
+                mcp.WithBoolean("dry_run", mcp.Description("If true, only validates without inserting (default false)")),
+        ), ns.handleImportData)
+
+        // Tool: negotiate_set_allocation
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_set_allocation",
+                mcp.WithDescription("Set a cost allocation percentage for a vendor to a department."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("department", mcp.Required(), mcp.Description("Department name")),
+                mcp.WithNumber("allocation_pct", mcp.Required(), mcp.Description("Allocation percentage (0-100)")),
+        ), ns.handleSetAllocation)
+
+        // Tool: negotiate_cost_allocation_report
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_cost_allocation_report",
+                mcp.WithDescription("Generate a cost allocation report showing spend distribution across departments by vendor."),
+                mcp.WithString("period", mcp.Description("Time period: 30d, 90d, 1y (default 90d)")),
+        ), ns.handleCostAllocationReport)
 
 }
 // ─── Tool Handlers ───
@@ -4132,4 +4173,150 @@ func (ns *NegotiationServer) handleVendorScorecard(ctx context.Context, req mcp.
                 "duration_ms":        time.Since(start).Milliseconds(),
         }
         return ns.jsonResult(resp)
+}
+
+// --- TCO Handler ---
+
+func (ns *NegotiationServer) handleTCO(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	sku, _ := req.RequireString("sku")
+	seats := req.GetInt("seats", 50)
+	termMonths := req.GetInt("term_months", 12)
+	implCosts := req.GetFloat("implementation_costs", 0)
+	trainingCosts := req.GetFloat("training_costs", 0)
+	supportCosts := req.GetFloat("support_costs", 0)
+
+	ns.logger.Debug("tco called", "vendor", vendor, "sku", sku, "seats", seats)
+
+	input := tco.TCOInput{
+		Vendor:              vendor,
+		SKU:                 sku,
+		Seats:               seats,
+		TermMonths:          termMonths,
+		ImplementationCosts: implCosts,
+		TrainingCosts:       trainingCosts,
+		SupportCosts:        supportCosts,
+	}
+
+	output, err := ns.tcoEng.Calculate(ctx, input)
+	if err != nil {
+		ns.logger.Warn("tco failed", "error", err.Error())
+		return mcp.NewToolResultError("TCO calculation failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"vendor":                    output.Vendor,
+		"sku":                       output.SKU,
+		"seats":                     output.Seats,
+		"term_months":               output.TermMonths,
+		"per_unit_cost":             output.PerUnitCost,
+		"annual_subscription":       output.AnnualSubscription,
+		"total_1y_tco":              output.Total1YTCO,
+		"total_3y_tco":              output.Total3YTCO,
+		"cost_per_user_per_month":   output.CostPerUserPerMonth,
+		"market_avg_cupm":           output.MarketAvgCUPM,
+		"savings_vs_market_pct":     output.SavingsVsMarketPct,
+		"hidden_costs_flagged":      output.HiddenCostsFlagged,
+		"duration_ms":               time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// --- Data Import Handler ---
+
+func (ns *NegotiationServer) handleImportData(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	typeStr, _ := req.RequireString("type")
+	data, _ := req.RequireString("data")
+	mode := req.GetString("mode", "import")
+	dryRun := req.GetBool("dry_run", false)
+
+	ns.logger.Debug("import_data called", "type", typeStr, "mode", mode, "dry_run", dryRun)
+
+	importReq := dataimport.ImportRequest{
+		Type:   dataimport.ImportType(typeStr),
+		Data:   data,
+		Mode:   dataimport.ImportMode(mode),
+		DryRun: dryRun,
+	}
+
+	var result *dataimport.ImportResult
+	var err error
+
+	if mode == "validate" {
+		result, err = ns.dataImportEng.Validate(ctx, importReq)
+	} else {
+		result, err = ns.dataImportEng.Import(ctx, importReq)
+	}
+
+	if err != nil {
+		ns.logger.Warn("import_data failed", "error", err.Error())
+		return mcp.NewToolResultError("Data import failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"valid_count":    result.ValidCount,
+		"imported_count": result.ImportedCount,
+		"skipped_count":  result.SkippedCount,
+		"errors":         result.Errors,
+		"summary":        result.Summary,
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// --- Cost Allocation Handlers ---
+
+func (ns *NegotiationServer) handleSetAllocation(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	department, _ := req.RequireString("department")
+	allocationPct := req.GetFloat("allocation_pct", 0)
+
+	ns.logger.Debug("set_allocation called", "vendor", vendor, "department", department, "pct", allocationPct)
+
+	allocation, err := ns.costAllocationEng.SetAllocation(ctx, vendor, department, allocationPct)
+	if err != nil {
+		ns.logger.Warn("set_allocation failed", "error", err.Error())
+		return mcp.NewToolResultError("Set allocation failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":             allocation.ID,
+		"vendor":         allocation.Vendor,
+		"department":     allocation.Department,
+		"allocation_pct": allocation.AllocationPct,
+		"created_at":     allocation.CreatedAt,
+		"updated_at":     allocation.UpdatedAt,
+		"status":         "saved",
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleCostAllocationReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	period := req.GetString("period", "90d")
+
+	ns.logger.Debug("cost_allocation_report called", "period", period)
+
+	report, err := ns.costAllocationEng.Report(ctx, period)
+	if err != nil {
+		ns.logger.Warn("cost_allocation_report failed", "error", err.Error())
+		return mcp.NewToolResultError("Cost allocation report failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"period":            report.Period,
+		"total_spend":       report.TotalSpend,
+		"by_department":     report.ByDepartment,
+		"by_vendor_per_dept": report.ByVendorDept,
+		"duration_ms":       time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
