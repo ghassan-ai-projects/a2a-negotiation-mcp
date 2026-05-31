@@ -17,6 +17,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/apikeyrotation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditreports"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autocomplete"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/autotrigger"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/batchcsv"
@@ -220,10 +221,11 @@ type NegotiationServer struct {
 	pushStore           *pushnotif.Store
 	pushEng             *pushnotif.Engine
 	rateLimitMgrStore   *ratelimitmgr.Store
+        auditReportsEng     *auditreports.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, strategyMarketStore *strategymarket.Store, batchCsvEng *batchcsv.Engine, vendorReviewsStore *vendorreviews.Store, communityBenchStore *communitybench.Store, qrShareEng *qrshare.Engine, pushStore *pushnotif.Store, pushEng *pushnotif.Engine, rateLimitMgrStore *ratelimitmgr.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, sandboxStore *sandbox.Store, sandboxEng *sandbox.Engine, schedulerStore *scheduler.Store, triggerStore *autotrigger.Store, workflowStore *workflow.Store, strategyMarketStore *strategymarket.Store, batchCsvEng *batchcsv.Engine, vendorReviewsStore *vendorreviews.Store, communityBenchStore *communitybench.Store, qrShareEng *qrshare.Engine, pushStore *pushnotif.Store, pushEng *pushnotif.Engine, rateLimitMgrStore *ratelimitmgr.Store, auditReportsEng *auditreports.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -362,6 +364,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		batchCsvEng: batchCsvEng,
 		qrShareEng: qrShareEng,
 		rateLimitMgrStore: rateLimitMgrStore,
+                auditReportsEng: auditReportsEng,
 	}
 
 	ns.registerTools()
@@ -1550,6 +1553,24 @@ func (ns *NegotiationServer) registerTools() {
 			mcp.WithDescription("Generate a QR code for quick session sharing."),
 			mcp.WithString("session_id", mcp.Required(), mcp.Description("Session ID to encode in QR code")),
 		), ns.handleQRSession)
+        // ─── P111: Audit Report Tools ───
+        ns.mcpServer.AddTool(mcp.NewTool("audit_generate_report",
+                mcp.WithDescription("Generate a downloadable audit report in JSON or CSV format for a given date range."),
+                mcp.WithString("from", mcp.Required(), mcp.Description("Start date (YYYY-MM-DD)")),
+                mcp.WithString("to", mcp.Required(), mcp.Description("End date (YYYY-MM-DD)")),
+                mcp.WithString("format", mcp.Required(), mcp.Description("Output format: json or csv")),
+        ), ns.handleAuditGenerateReport)
+
+        ns.mcpServer.AddTool(mcp.NewTool("audit_get_summary",
+                mcp.WithDescription("Get an audit summary for a given period: 30d, 90d, 1y, or all."),
+                mcp.WithString("period", mcp.Required(), mcp.Description("Time period: 30d, 90d, 1y, or all")),
+        ), ns.handleAuditGetSummary)
+
+        ns.mcpServer.AddTool(mcp.NewTool("audit_get_trail",
+                mcp.WithDescription("Retrieve audit trail entries for a specific entity."),
+                mcp.WithString("entity_type", mcp.Required(), mcp.Description("Entity type (e.g., negotiation, contract)")),
+                mcp.WithString("entity_id", mcp.Required(), mcp.Description("Entity ID")),
+        ), ns.handleAuditGetTrail)
 }
 
 // ─── Tool Handlers ───
@@ -7843,3 +7864,95 @@ func (ns *NegotiationServer) handleRateLimitHits(ctx context.Context, req mcp.Ca
         return ns.jsonResult(resp)
 }
 
+
+// ─── P111: Audit Report Handlers ───
+
+func (ns *NegotiationServer) handleAuditGenerateReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	from, err := req.RequireString("from")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: from"), nil
+	}
+	to, err := req.RequireString("to")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: to"), nil
+	}
+	format, err := req.RequireString("format")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: format"), nil
+	}
+
+	ns.logger.Debug("audit_generate_report called", "from", from, "to", to, "format", format)
+
+	report, err := ns.auditReportsEng.GenerateReport(ctx, from, to, format)
+	if err != nil {
+		ns.logger.Warn("audit_generate_report failed", "error", err.Error())
+		return mcp.NewToolResultError("Generate report failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"period_from":  report.PeriodFrom,
+		"period_to":    report.PeriodTo,
+		"format":       report.Format,
+		"data":         report.Data,
+		"row_count":    report.RowCount,
+		"summary":      report.Summary,
+		"duration_ms":  time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAuditGetSummary(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	period, err := req.RequireString("period")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: period"), nil
+	}
+
+	ns.logger.Debug("audit_get_summary called", "period", period)
+
+	summary, err := ns.auditReportsEng.GetAuditSummary(ctx, period)
+	if err != nil {
+		ns.logger.Warn("audit_get_summary failed", "error", err.Error())
+		return mcp.NewToolResultError("Get audit summary failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"total_negotiations": summary.TotalNegotiations,
+		"total_savings":      summary.TotalSavings,
+		"avg_discount":       summary.AvgDiscount,
+		"period_description": summary.PeriodDescription,
+		"duration_ms":        time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAuditGetTrail(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	entityType, err := req.RequireString("entity_type")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: entity_type"), nil
+	}
+	entityID, err := req.RequireString("entity_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: entity_id"), nil
+	}
+
+	ns.logger.Debug("audit_get_trail called", "entity_type", entityType, "entity_id", entityID)
+
+	entries, err := ns.auditReportsEng.GetAuditTrail(ctx, entityType, entityID)
+	if err != nil {
+		ns.logger.Warn("audit_get_trail failed", "error", err.Error())
+		return mcp.NewToolResultError("Get audit trail failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"entries":     entries,
+		"count":       len(entries),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
