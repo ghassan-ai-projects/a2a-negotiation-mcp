@@ -74,6 +74,7 @@ import (
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contribguide"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/coverage"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/dependency"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ipwhitelist"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/metrics"
         "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/shutdown"
 	"github.com/google/uuid"
@@ -145,6 +146,7 @@ type NegotiationServer struct {
 	toolStatsEng    *toolstats.Engine
 	healthCheckEng  *healthcheck.Engine
 	apiKeyRotateEng *apikeyrotation.Engine
+	ipWhitelistEng  *ipwhitelist.Engine
 	autocompleteEng *autocomplete.Engine
 	metricsEng      *metrics.Engine
 	shutdownEng     *shutdown.Engine
@@ -154,7 +156,7 @@ type NegotiationServer struct {
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -262,6 +264,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		dependencyEng:   dependencyEng,
 		contribguideEng: contribguideEng,
 		apiKeyRotateEng: apiKeyRotateEng,
+		ipWhitelistEng:  ipWhitelistEng,
 	}
 
 	ns.registerTools()
@@ -1039,6 +1042,24 @@ func (ns *NegotiationServer) registerTools() {
 	ns.mcpServer.AddTool(mcp.NewTool("negotiate_key_health",
 		mcp.WithDescription("Retrieve the health status of all API keys — includes status, owner, creation date, expiry, and last rotation."),
 	), ns.handleKeyHealth)
+
+	// Tool: negotiate_add_ip
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_add_ip",
+		mcp.WithDescription("Add an IP address to the whitelist with a descriptive label."),
+		mcp.WithString("ip_address", mcp.Required(), mcp.Description("IP address to whitelist")),
+		mcp.WithString("label", mcp.Required(), mcp.Description("Descriptive label for this IP")),
+	), ns.handleAddIP)
+
+	// Tool: negotiate_remove_ip
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_remove_ip",
+		mcp.WithDescription("Remove an IP address from the whitelist."),
+		mcp.WithString("ip_address", mcp.Required(), mcp.Description("IP address to remove")),
+	), ns.handleRemoveIP)
+
+	// Tool: negotiate_list_whitelist
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_whitelist",
+		mcp.WithDescription("List all IP addresses currently on the whitelist."),
+	), ns.handleListWhitelist)
 }
 
 // ─── Tool Handlers ───
@@ -4986,6 +5007,72 @@ func (ns *NegotiationServer) handleKeyHealth(ctx context.Context, req mcp.CallTo
 	resp := map[string]any{
 		"keys":        keys,
 		"total":       len(keys),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleAddIP(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ip, _ := req.RequireString("ip_address")
+	label, _ := req.RequireString("label")
+
+	ns.logger.Info("negotiate_add_ip called", "ip_address", ip, "label", label)
+
+	if ns.ipWhitelistEng == nil {
+		return mcp.NewToolResultError("IP whitelist engine is not available"), nil
+	}
+
+	if err := ns.ipWhitelistEng.AddIP(ip, label); err != nil {
+		ns.logger.Warn("negotiate_add_ip failed", "error", err.Error())
+		return mcp.NewToolResultError("Add IP failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"ip_address":  ip,
+		"label":       label,
+		"status":      "added",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleRemoveIP(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ip, _ := req.RequireString("ip_address")
+
+	ns.logger.Info("negotiate_remove_ip called", "ip_address", ip)
+
+	if ns.ipWhitelistEng == nil {
+		return mcp.NewToolResultError("IP whitelist engine is not available"), nil
+	}
+
+	if err := ns.ipWhitelistEng.RemoveIP(ip); err != nil {
+		ns.logger.Warn("negotiate_remove_ip failed", "error", err.Error())
+		return mcp.NewToolResultError("Remove IP failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"ip_address":  ip,
+		"status":      "removed",
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListWhitelist(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+	ns.logger.Info("negotiate_list_whitelist called")
+
+	if ns.ipWhitelistEng == nil {
+		return mcp.NewToolResultError("IP whitelist engine is not available"), nil
+	}
+
+	entries := ns.ipWhitelistEng.List()
+
+	resp := map[string]any{
+		"entries":     entries,
+		"total":       len(entries),
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
