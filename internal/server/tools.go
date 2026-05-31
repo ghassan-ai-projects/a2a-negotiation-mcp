@@ -86,6 +86,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/spendingcaps"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/strategycomparison"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/tco"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolbilling"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/toolstats"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/translation"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/training"
@@ -194,10 +195,11 @@ type NegotiationServer struct {
 	complianceEng       *compliance.Engine
 	residencyStore *datresidency.Store
 	dashboardStore *dashboard.Store
+	toolBillingStore     *toolbilling.Store
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, clausesStore *contractclauses.Store, esigStore *esignature.Store, esigEng *esignature.Engine, residencyStore *datresidency.Store, dashboardStore *dashboard.Store, chartExportEng *chartexport.Engine, monitorDashEng *monitordash.Engine, webhookLogStore *webhooklog.Store, toolBillingStore *toolbilling.Store, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -325,6 +327,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
                 complianceEng:       complianceEng,
                 residencyStore:       residencyStore,
                 dashboardStore:       dashboardStore,
+		toolBillingStore:     toolBillingStore,
 	}
 
 	ns.registerTools()
@@ -6711,6 +6714,119 @@ func (ns *NegotiationServer) handleLiveDashboard(ctx context.Context, req mcp.Ca
 		"total_tools":         dash.TotalTools,
 		"timestamp":           dash.Timestamp,
 		"duration_ms":         time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P99: Tool Usage Billing Handlers ───
+
+func (ns *NegotiationServer) handleSetToolPrice(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	toolName, err := req.RequireString("tool_name")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: tool_name"), nil
+	}
+	rawPrice, ok := req.GetArguments()["price_per_call"]
+	if !ok {
+		return mcp.NewToolResultError("Missing required parameter: price_per_call"), nil
+	}
+	pricePerCall, ok := rawPrice.(float64)
+	if !ok {
+		return mcp.NewToolResultError("price_per_call must be a number"), nil
+	}
+
+	ns.logger.Debug("negotiate_set_tool_price called", "tool_name", toolName, "price_per_call", pricePerCall)
+
+	tp, err := ns.toolBillingStore.SetToolPrice(ctx, toolName, pricePerCall)
+	if err != nil {
+		ns.logger.Warn("negotiate_set_tool_price failed", "error", err.Error())
+		return mcp.NewToolResultError("Set tool price failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"tool_name":      tp.ToolName,
+		"price_per_call": tp.PricePerCall,
+		"duration_ms":    time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleBillingReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	keyID, err := req.RequireString("key_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: key_id"), nil
+	}
+	from, err := req.RequireString("from")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: from"), nil
+	}
+	to, err := req.RequireString("to")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: to"), nil
+	}
+
+	ns.logger.Debug("negotiate_billing_report called", "key_id", keyID, "from", from, "to", to)
+
+	report, err := ns.toolBillingStore.GetBillingReport(ctx, keyID, from, to)
+	if err != nil {
+		ns.logger.Warn("negotiate_billing_report failed", "error", err.Error())
+		return mcp.NewToolResultError("Get billing report failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"key_id":       report.KeyID,
+		"total_calls":  report.TotalCalls,
+		"total_cost":   report.TotalCost,
+		"period_from":  report.PeriodFrom,
+		"period_to":    report.PeriodTo,
+		"per_tool":     report.PerTool,
+		"duration_ms":  time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleUsageTier(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	keyID, err := req.RequireString("key_id")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: key_id"), nil
+	}
+
+	ns.logger.Debug("negotiate_usage_tier called", "key_id", keyID)
+
+	tier, err := ns.toolBillingStore.GetUsageTier(ctx, keyID)
+	if err != nil {
+		ns.logger.Warn("negotiate_usage_tier failed", "error", err.Error())
+		return mcp.NewToolResultError("Get usage tier failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"key_id":           tier.KeyID,
+		"current_tier":     tier.CurrentTier,
+		"calls_this_month": tier.CallsThisMonth,
+		"tier_limit":       tier.TierLimit,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleOverageAlerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("negotiate_overage_alerts called")
+
+	// Return current tier configuration
+	resp := map[string]any{
+		"tiers": []map[string]any{
+			{"name": "tier1", "range": "0-100 calls", "cost_per_call": "free"},
+			{"name": "tier2", "range": "101-1000 calls", "cost_per_call": "$0.01"},
+			{"name": "tier3", "range": "1001+ calls", "cost_per_call": "$0.005"},
+		},
+		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
