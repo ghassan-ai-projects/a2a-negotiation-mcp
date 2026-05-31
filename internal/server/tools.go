@@ -25,6 +25,7 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/budgetmgmt"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/calendar"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
+        "github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/compliance"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contract"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
@@ -177,10 +178,11 @@ type NegotiationServer struct {
 	translationStore      *translation.Store
 	translationEng        *translation.Engine
         summarizerEng *summarizer.Engine
+	complianceEng       *compliance.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, apiDocsEng *apidocs.Engine, toolStatsEng *toolstats.Engine, healthCheckEng *healthcheck.Engine, autocompleteEng *autocomplete.Engine, metricsEng *metrics.Engine, shutdownEng *shutdown.Engine, coverageEng *coverage.Engine, dependencyEng *dependency.Engine, contribguideEng *contribguide.Engine, apiKeyRotateEng *apikeyrotation.Engine, ipWhitelistEng *ipwhitelist.Engine, dataRetentionEng *dataretention.Engine, playbookEng *playbook.Engine, trainingEng *training.Engine, industryReportsStore *industryreports.Store, aiPerfStore *aiperformance.Store, promptsStore *prompts.Store, modelABTestEng *modelabtesting.Engine, vendorKnowledgeStore *vendorknowledge.Store, summarizerEng *summarizer.Engine, sentimentEng *sentiment.Engine, translationStore *translation.Store, translationEng *translation.Engine, complianceEng *compliance.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -301,6 +303,7 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		translationStore:     translationStore,
 		translationEng:       translationEng,
                 summarizerEng:  summarizerEng,
+                complianceEng:       complianceEng,
 	}
 
 	ns.registerTools()
@@ -1203,6 +1206,13 @@ func (ns *NegotiationServer) registerTools() {
 			mcp.WithString("from", mcp.Required(), mcp.Description("Source language code")),
 			mcp.WithString("to", mcp.Required(), mcp.Description("Target language code")),
 		), ns.handleLanguageGlossary)
+
+                // Tool: negotiate_compliance_check
+                ns.mcpServer.AddTool(mcp.NewTool("negotiate_compliance_check",
+                        mcp.WithDescription("Check negotiation terms against regulatory compliance requirements for a given jurisdiction (gdpr, soc2, hipaa, ccpa). Returns pass/fail per rule and an overall compliance status."),
+                        mcp.WithString("terms", mcp.Required(), mcp.Description("The negotiation terms / agreement text to check")),
+                        mcp.WithString("jurisdiction", mcp.Required(), mcp.Description("Regulatory jurisdiction: gdpr, soc2, hipaa, or ccpa")),
+                ), ns.handleComplianceCheck)
 }
 
 // ─── Tool Handlers ───
@@ -5893,6 +5903,40 @@ func (ns *NegotiationServer) handleLanguageGlossary(ctx context.Context, req mcp
 		"to_language":   glossary.ToLanguage,
 		"entries":       glossary.Entries,
 		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleComplianceCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	terms, err := req.RequireString("terms")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: terms"), nil
+	}
+	jurisdiction, err := req.RequireString("jurisdiction")
+	if err != nil {
+		return mcp.NewToolResultError("Missing required parameter: jurisdiction"), nil
+	}
+
+	if ns.complianceEng == nil {
+		return mcp.NewToolResultError("Compliance engine is not available"), nil
+	}
+
+	result, err := ns.complianceEng.Check(ctx, terms, jurisdiction)
+	if err != nil {
+		ns.logger.Warn("negotiate_compliance_check failed", "error", err.Error())
+		return mcp.NewToolResultError(fmt.Sprintf("Compliance check failed: %s", err.Error())), nil
+	}
+
+	resp := map[string]any{
+		"terms":          result.Terms,
+		"jurisdiction":   result.Jurisdiction,
+		"overall_status": result.OverallStatus,
+		"flags":          result.Flags,
+		"pass_count":     result.PassCount,
+		"flag_count":     result.FlagCount,
+		"duration_ms":    time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
 }
