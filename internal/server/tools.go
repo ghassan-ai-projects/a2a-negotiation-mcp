@@ -50,6 +50,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -97,13 +100,16 @@ type NegotiationServer struct {
 	workspacesEng *workspaces.Engine
 	auditLogEng    *auditlog.Engine
 	userActivityEng *useractivity.Engine
+	sharedStrategiesEng *sharedstrategies.Engine
+	notesEng              *notes.Engine
+	approvalsEng           *approvals.Engine
 	contractTemplatesEng *contracttemplates.Engine
 	contractRiskEng     *contractrisk.Engine
 	scorecardsEng       *scorecards.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -189,6 +195,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		contractTemplatesEng: contractTemplatesEng,
 		contractRiskEng:     contractRiskEng,
 		scorecardsEng:       scorecardsEng,
+		sharedStrategiesEng: sharedStrategiesEng,
+		notesEng:              notesEng,
+		approvalsEng:           approvalsEng,
 	}
 
 	ns.registerTools()
@@ -692,6 +701,70 @@ func (ns *NegotiationServer) registerTools() {
                 mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
                 mcp.WithString("period", mcp.Description("Time period: 1y, 90d, 30d (default: 1y)")),
         ), ns.handleVendorScorecard)
+
+	// Tool: negotiate_share_strategy
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_share_strategy",
+		mcp.WithDescription("Share a negotiation strategy with a name, notes, and type."),
+		mcp.WithString("name", mcp.Required(), mcp.Description("Strategy name")),
+		mcp.WithString("notes", mcp.Description("Notes about the strategy")),
+		mcp.WithString("strategy_type", mcp.Description("Strategy type: aggressive, balanced, conservative (default: balanced)")),
+	), ns.handleShareStrategy)
+
+	// Tool: negotiate_list_shared_strategies
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_shared_strategies",
+		mcp.WithDescription("List all shared strategies."),
+	), ns.handleListSharedStrategies)
+
+	// Tool: negotiate_import_strategy
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_import_strategy",
+		mcp.WithDescription("Import a shared strategy by ID. Increments its usage count."),
+		mcp.WithString("strategy_id", mcp.Required(), mcp.Description("ID of the strategy to import")),
+	), ns.handleImportStrategy)
+
+	// Tool: negotiate_add_note
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_add_note",
+		mcp.WithDescription("Add a note to a negotiation session."),
+		mcp.WithString("session_id", mcp.Required(), mcp.Description("Negotiation session ID")),
+		mcp.WithString("content", mcp.Required(), mcp.Description("Note content")),
+	), ns.handleAddNote)
+
+	// Tool: negotiate_list_notes
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_list_notes",
+		mcp.WithDescription("List all notes for a negotiation session."),
+		mcp.WithString("session_id", mcp.Required(), mcp.Description("Negotiation session ID")),
+	), ns.handleListNotes)
+
+	// Tool: negotiate_delete_note
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_delete_note",
+		mcp.WithDescription("Delete a note by ID."),
+		mcp.WithInteger("note_id", mcp.Required(), mcp.Description("Note ID to delete")),
+	), ns.handleDeleteNote)
+
+	// Tool: negotiate_request_approval
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_request_approval",
+		mcp.WithDescription("Request approval for a negotiation action."),
+		mcp.WithString("session_id", mcp.Required(), mcp.Description("Negotiation session ID")),
+		mcp.WithString("reason", mcp.Required(), mcp.Description("Reason for approval")),
+		mcp.WithNumber("threshold", mcp.Description("Price threshold (optional)")),
+	), ns.handleRequestApproval)
+
+	// Tool: negotiate_approve
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_approve",
+		mcp.WithDescription("Approve a pending approval request."),
+		mcp.WithString("approval_id", mcp.Required(), mcp.Description("Approval ID to approve")),
+	), ns.handleApprove)
+
+	// Tool: negotiate_reject
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_reject",
+		mcp.WithDescription("Reject a pending approval request."),
+		mcp.WithString("approval_id", mcp.Required(), mcp.Description("Approval ID to reject")),
+		mcp.WithString("reason", mcp.Required(), mcp.Description("Reason for rejection")),
+	), ns.handleReject)
+
+	// Tool: negotiate_pending_approvals
+	ns.mcpServer.AddTool(mcp.NewTool("negotiate_pending_approvals",
+		mcp.WithDescription("List all pending approval requests."),
+	), ns.handlePendingApprovals)
 
 }
 // ─── Tool Handlers ───
@@ -3550,6 +3623,251 @@ func (ns *NegotiationServer) handleContractRisk(ctx context.Context, req mcp.Cal
                 "duration_ms":      time.Since(start).Milliseconds(),
         }
         return ns.jsonResult(resp)
+}
+
+// --- Shared Strategy Handlers ---
+
+func (ns *NegotiationServer) handleShareStrategy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	name, _ := req.RequireString("name")
+	notes := req.GetString("notes", "")
+	strategyType := req.GetString("strategy_type", "balanced")
+
+	ns.logger.Debug("share_strategy called", "name", name, "strategy_type", strategyType)
+
+	st, err := ns.sharedStrategiesEng.ShareStrategy(ctx, name, notes, strategyType)
+	if err != nil {
+		ns.logger.Warn("share_strategy failed", "error", err.Error())
+		return mcp.NewToolResultError("Share strategy failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":            st.ID,
+		"name":          st.Name,
+		"notes":         st.Notes,
+		"strategy_type": st.StrategyType,
+		"usage_count":   st.UsageCount,
+		"created_at":    st.CreatedAt,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListSharedStrategies(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("list_shared_strategies called")
+
+	strategies, err := ns.sharedStrategiesEng.List(ctx)
+	if err != nil {
+		ns.logger.Warn("list_shared_strategies failed", "error", err.Error())
+		return mcp.NewToolResultError("List shared strategies failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"strategies":  strategies,
+		"count":       len(strategies),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleImportStrategy(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	strategyID, _ := req.RequireString("strategy_id")
+
+	ns.logger.Debug("import_strategy called", "strategy_id", strategyID)
+
+	st, err := ns.sharedStrategiesEng.ImportStrategy(ctx, strategyID)
+	if err != nil {
+		ns.logger.Warn("import_strategy failed", "error", err.Error())
+		return mcp.NewToolResultError("Import strategy failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":            st.ID,
+		"name":          st.Name,
+		"notes":         st.Notes,
+		"strategy_type": st.StrategyType,
+		"usage_count":   st.UsageCount,
+		"created_at":    st.CreatedAt,
+		"duration_ms":   time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+
+// --- Notes Handlers ---
+
+func (ns *NegotiationServer) handleAddNote(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	sessionID, _ := req.RequireString("session_id")
+	content, _ := req.RequireString("content")
+
+	ns.logger.Debug("add_note called", "session_id", sessionID)
+
+	note, err := ns.notesEng.AddNote(ctx, sessionID, content)
+	if err != nil {
+		ns.logger.Warn("add_note failed", "error", err.Error())
+		return mcp.NewToolResultError("Add note failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          note.ID,
+		"session_id":  note.SessionID,
+		"content":     note.Content,
+		"created_at":  note.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleListNotes(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	sessionID, _ := req.RequireString("session_id")
+
+	ns.logger.Debug("list_notes called", "session_id", sessionID)
+
+	notes, err := ns.notesEng.ListNotes(ctx, sessionID)
+	if err != nil {
+		ns.logger.Warn("list_notes failed", "error", err.Error())
+		return mcp.NewToolResultError("List notes failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"notes":       notes,
+		"count":       len(notes),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleDeleteNote(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	noteID := req.GetInt("note_id", 0)
+	if noteID == 0 {
+		return mcp.NewToolResultError("note_id is required"), nil
+	}
+
+	ns.logger.Debug("delete_note called", "note_id", noteID)
+
+	if err := ns.notesEng.DeleteNote(ctx, int64(noteID)); err != nil {
+		ns.logger.Warn("delete_note failed", "error", err.Error())
+		return mcp.NewToolResultError("Delete note failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"deleted":     true,
+		"note_id":     noteID,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+
+// --- Approval Handlers ---
+
+func (ns *NegotiationServer) handleRequestApproval(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	sessionID, _ := req.RequireString("session_id")
+	reason, _ := req.RequireString("reason")
+	threshold := req.GetFloat("threshold", 0)
+
+	ns.logger.Debug("request_approval called", "session_id", sessionID, "reason", reason, "threshold", threshold)
+
+	approval, err := ns.approvalsEng.RequestApproval(ctx, sessionID, reason, threshold)
+	if err != nil {
+		ns.logger.Warn("request_approval failed", "error", err.Error())
+		return mcp.NewToolResultError("Request approval failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          approval.ID,
+		"session_id":  approval.SessionID,
+		"reason":      approval.Reason,
+		"threshold":   approval.Threshold,
+		"status":      approval.Status,
+		"created_at":  approval.CreatedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleApprove(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	approvalID, _ := req.RequireString("approval_id")
+
+	ns.logger.Debug("approve called", "approval_id", approvalID)
+
+	approval, err := ns.approvalsEng.Approve(ctx, approvalID)
+	if err != nil {
+		ns.logger.Warn("approve failed", "error", err.Error())
+		return mcp.NewToolResultError("Approve failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          approval.ID,
+		"session_id":  approval.SessionID,
+		"reason":      approval.Reason,
+		"threshold":   approval.Threshold,
+		"status":      approval.Status,
+		"created_at":  approval.CreatedAt,
+		"resolved_at": approval.ResolvedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleReject(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	approvalID, _ := req.RequireString("approval_id")
+
+	ns.logger.Debug("reject called", "approval_id", approvalID)
+
+	approval, err := ns.approvalsEng.Reject(ctx, approvalID)
+	if err != nil {
+		ns.logger.Warn("reject failed", "error", err.Error())
+		return mcp.NewToolResultError("Reject failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":          approval.ID,
+		"session_id":  approval.SessionID,
+		"reason":      approval.Reason,
+		"threshold":   approval.Threshold,
+		"status":      approval.Status,
+		"created_at":  approval.CreatedAt,
+		"resolved_at": approval.ResolvedAt,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handlePendingApprovals(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("pending_approvals called")
+
+	approvals, err := ns.approvalsEng.Pending(ctx)
+	if err != nil {
+		ns.logger.Warn("pending_approvals failed", "error", err.Error())
+		return mcp.NewToolResultError("Pending approvals failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"approvals":   approvals,
+		"count":       len(approvals),
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
 }
 
 // --- Vendor Scorecard Handler ---

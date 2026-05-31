@@ -45,6 +45,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/workspaces"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/auditlog"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/useractivity"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/sharedstrategies"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/notes"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/approvals"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contracttemplates"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/contractrisk"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/scorecards"
@@ -310,10 +313,34 @@ func main() {
 	contractRiskEng := contractrisk.NewEngine()
 
 	// Initialize scorecards engine (read-only, uses deal_outcomes, vendor_health, sla_breaches)
+	// Initialize scorecards engine (read-only, uses deal_outcomes, vendor_health, sla_breaches)
 	scorecardsEng := scorecards.NewEngine(pricingStore.DB(), logger)
 
+	// Initialize shared strategies store and engine
+	sharedStrategiesStore, err := sharedstrategies.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize shared strategies store", "error", err.Error())
+		os.Exit(1)
+	}
+	sharedStrategiesEng := sharedstrategies.NewEngine(sharedStrategiesStore)
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, logger)
+	// Initialize notes store and engine
+	notesStore, err := notes.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize notes store", "error", err.Error())
+		os.Exit(1)
+	}
+	notesEng := notes.NewEngine(notesStore)
+
+	// Initialize approvals store and engine
+	approvalsStore, err := approvals.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize approvals store", "error", err.Error())
+		os.Exit(1)
+	}
+	approvalsEng := approvals.NewEngine(approvalsStore)
+
+negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())
