@@ -60,6 +60,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/limitedoffer"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingrefresh"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ratelimitdashboard"
 
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/server"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -390,7 +393,22 @@ func main() {
 	}
 	commLogEng := commlog.NewEngine(commLogStore, pricingStore.DB(), logger)
 
-negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, logger)
+	// Initialize limited offer engine (P66)
+	limitedOfferEng := limitedoffer.NewEngine(pricingStore.DB(), logger)
+
+	// Initialize pricing refresh engine (P67)
+	pricingRefreshEng := pricingrefresh.NewEngine(pricingStore.DB(), logger)
+
+	// Initialize rate limit dashboard store and engine (P68)
+	rateLimitDashStore, err := ratelimitdashboard.NewStore(pricingStore.DB())
+	if err != nil {
+		logger.Error("failed to initialize rate limit dashboard store", "error", err.Error())
+		os.Exit(1)
+	}
+	rateLimitDashEng := ratelimitdashboard.NewEngine(rateLimitDashStore, logger)
+
+
+negServer := server.NewNegotiationServer(pricingStore, historyStore, groupEngine, sellEngine, calendarEngine, healthEngine, marketplaceEngine, slaEngine, webhookEng, slackClient, apiKeyStore, roiStore, trendsStore, exportStore, notifyStore, budgetStore, vendorspendEng, effectivenessEng, priceAlertStore, budgetAlertStore, reportsEng, pricingIndexEng, priceChartEng, vendorComparisonEng, batchNegotiationEng, strategyComparisonEng, workspaceEng, auditLogEng, userActivityEng, contractTemplatesEng, contractRiskEng, scorecardsEng, sharedStrategiesEng, notesEng, approvalsEng, budgetMgmtEng, spendingCapsEng, savingsRealizationEng, tcoEng, dataImportEng, costAllocationEng, alertHistoryEng, slaCreditEng, commLogEng, limitedOfferEng, pricingRefreshEng, rateLimitDashEng, logger)
 
         // Initialize gamification store and engine (for streaks, leaderboard, badges)
         gamifStore, err := gamification.NewStore(pricingStore.DB())

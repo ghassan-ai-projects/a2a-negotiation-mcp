@@ -62,6 +62,9 @@ import (
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/alerthistory"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/slacredit"
 	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/commlog"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/limitedoffer"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/pricingrefresh"
+	"github.com/ghassan-ai-projects/a2a-negotiation-mcp/internal/ratelimitdashboard"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -124,10 +127,13 @@ type NegotiationServer struct {
 	commLogEng       *commlog.Engine
 	dataImportEng       *dataimport.Engine
 	costAllocationEng   *costallocation.Engine
+	limitedOfferEng      *limitedoffer.Engine
+	pricingRefreshEng    *pricingrefresh.Engine
+	rateLimitDashEng     *ratelimitdashboard.Engine
 }
 
 // NewNegotiationServer creates a new MCP negotiation server.
-func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, logger *slog.Logger) *NegotiationServer {
+func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Store, groupEngine *group.Engine, sellEngine *sell.Engine, calendarEngine *calendar.Engine, healthEngine *health.Engine, marketplaceEngine *marketplace.Engine, slaEngine *sla.Engine, webhookEng *webhooks.Engine, slackClient *slack.Client, apiKeyStore *a2a.APIKeyStore, roiStore *roi.Store, trendsStore *trends.Store, exportStore *export.Store, notifyStore *notify.Store, budgetStore *budget.Store, vendorspendEng *vendorspend.Engine, effectivenessEng *effectiveness.Engine, priceAlertStore *pricealerts.Store, budgetAlertStore *budgetalerts.Store, reportsEng *reports.Engine, pricingIndexEng *pricingindex.Engine, priceChartEng *pricechart.Engine, vendorComparisonEng *vendorcomparison.Engine, batchNegotiationEng *batchnegotiation.Engine, strategyComparisonEng *strategycomparison.Engine, workspacesEng *workspaces.Engine, auditLogEng *auditlog.Engine, userActivityEng *useractivity.Engine, contractTemplatesEng *contracttemplates.Engine, contractRiskEng *contractrisk.Engine, scorecardsEng *scorecards.Engine, sharedStrategiesEng *sharedstrategies.Engine, notesEng *notes.Engine, approvalsEng *approvals.Engine, budgetMgmtEng *budgetmgmt.Engine, spendingCapsEng *spendingcaps.Engine, savingsRealizationEng *savingsrealization.Engine, tcoEng *tco.Engine, dataImportEng *dataimport.Engine, costAllocationEng *costallocation.Engine, alertHistoryEng *alerthistory.Engine, slaCreditEng *slacredit.Engine, commLogEng *commlog.Engine, limitedOfferEng *limitedoffer.Engine, pricingRefreshEng *pricingrefresh.Engine, rateLimitDashEng *ratelimitdashboard.Engine, logger *slog.Logger) *NegotiationServer {
 	eng := negotiation.NewEngine(pricingStore)
 	miningEng := miner.NewEngine(pricingStore, logger)
 	learningEng, err := learning.NewEngine(historyStore, logger)
@@ -222,6 +228,9 @@ func NewNegotiationServer(pricingStore *pricing.Store, historyStore *history.Sto
 		alertHistoryEng: alertHistoryEng,
 		slaCreditEng:     slaCreditEng,
 		commLogEng:       commLogEng,
+                limitedOfferEng:      limitedOfferEng,
+                pricingRefreshEng:    pricingRefreshEng,
+                rateLimitDashEng:     rateLimitDashEng,
 	}
 
 	ns.registerTools()
@@ -909,6 +918,36 @@ func (ns *NegotiationServer) registerTools() {
 		mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
 		mcp.WithInteger("limit", mcp.Description("Max results (default 20)")),
 	), ns.handleCommunicationHistory)
+
+        // Tool: negotiate_analyze_offer
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_analyze_offer",
+                mcp.WithDescription("Analyze a time-limited vendor offer. Returns savings, urgency, recommendation, and price comparison."),
+                mcp.WithString("vendor", mcp.Required(), mcp.Description("Vendor name")),
+                mcp.WithString("sku", mcp.Required(), mcp.Description("Product SKU")),
+                mcp.WithNumber("offer_price", mcp.Required(), mcp.Description("Offered price")),
+                mcp.WithString("expires_at", mcp.Required(), mcp.Description("Offer expiration (RFC3339)")),
+                mcp.WithNumber("current_price", mcp.Description("Current price per unit (optional)")),
+                mcp.WithNumber("current_spend", mcp.Description("Current total spend (optional)")),
+        ), ns.handleAnalyzeOffer)
+
+        // Tool: negotiate_refresh_pricing
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_refresh_pricing",
+                mcp.WithDescription("Refresh pricing snapshots for vendors with ±3% variation. Creates new trend data points."),
+                mcp.WithArray("vendors", mcp.WithStringItems(), mcp.Description("Vendor list (empty = all)")),
+                mcp.WithString("source", mcp.Description("Data source label (default: seed)")),
+        ), ns.handleRefreshPricing)
+
+        // Tool: negotiate_rate_limit_dashboard
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_rate_limit_dashboard",
+                mcp.WithDescription("Get current rate limit usage status — requests this minute, hour, day, and status color."),
+        ), ns.handleRateLimitDashboard)
+
+        // Tool: negotiate_log_api_request
+        ns.mcpServer.AddTool(mcp.NewTool("negotiate_log_api_request",
+                mcp.WithDescription("Log an API request for rate limit tracking."),
+                mcp.WithString("api_key_id", mcp.Required(), mcp.Description("API key identifier")),
+                mcp.WithString("endpoint", mcp.Required(), mcp.Description("API endpoint called")),
+        ), ns.handleLogAPIRequest)
 }
 // ─── Tool Handlers ───
 
@@ -4473,6 +4512,130 @@ func (ns *NegotiationServer) handleCommunicationHistory(ctx context.Context, req
 	resp := map[string]any{
 		"entries":     result.Entries,
 		"total_count": result.TotalCount,
+		"duration_ms": time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P66: Time-Limited Offer Handler ───
+
+func (ns *NegotiationServer) handleAnalyzeOffer(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	vendor, _ := req.RequireString("vendor")
+	sku, _ := req.RequireString("sku")
+	offerPrice := req.GetFloat("offer_price", 0)
+	expiresAtStr, _ := req.RequireString("expires_at")
+	currentPrice := req.GetFloat("current_price", 0)
+	currentSpend := req.GetFloat("current_spend", 0)
+
+	ns.logger.Debug("negotiate_analyze_offer called", "vendor", vendor, "sku", sku)
+
+	expiresAt, err := time.Parse(time.RFC3339, expiresAtStr)
+	if err != nil {
+		return mcp.NewToolResultError("Invalid expires_at format, expected RFC3339: " + err.Error()), nil
+	}
+
+	input := &limitedoffer.OfferInput{
+		Vendor:       vendor,
+		SKU:          sku,
+		OfferPrice:   offerPrice,
+		ExpiresAt:    expiresAt,
+		CurrentPrice: currentPrice,
+		CurrentSpend: currentSpend,
+	}
+
+	result, err := ns.limitedOfferEng.Analyze(ctx, input)
+	if err != nil {
+		ns.logger.Warn("negotiate_analyze_offer failed", "error", err.Error())
+		return mcp.NewToolResultError("Analyze offer failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"savings":          result.Savings,
+		"days_remaining":   result.DaysRemaining,
+		"urgency":          result.Urgency,
+		"recommendation":   result.Recommendation,
+		"vs_best_price_pct": result.VsBestPricePct,
+		"duration_ms":      time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P67: Pricing Refresh Handler ───
+
+func (ns *NegotiationServer) handleRefreshPricing(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	rawVendors, _ := req.GetArguments()["vendors"]
+	var vendors []string
+	if rawVendors != nil {
+		if vl, ok := rawVendors.([]any); ok {
+			for _, v := range vl {
+				if s, ok := v.(string); ok {
+					vendors = append(vendors, s)
+				}
+			}
+		}
+	}
+
+	ns.logger.Debug("negotiate_refresh_pricing called", "vendors", vendors)
+
+	result, err := ns.pricingRefreshEng.Refresh(ctx, vendors, ns.trendsEng.Store())
+	if err != nil {
+		ns.logger.Warn("negotiate_refresh_pricing failed", "error", err.Error())
+		return mcp.NewToolResultError("Refresh pricing failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"vendors_refreshed": result.VendorsRefreshed,
+		"records_updated":   result.RecordsUpdated,
+		"duration_ms":       result.DurationMs,
+	}
+	return ns.jsonResult(resp)
+}
+
+// ─── P68: Rate Limit Dashboard Handlers ───
+
+func (ns *NegotiationServer) handleRateLimitDashboard(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	ns.logger.Debug("negotiate_rate_limit_dashboard called")
+
+	status, err := ns.rateLimitDashEng.GetStatus(ctx)
+	if err != nil {
+		ns.logger.Warn("negotiate_rate_limit_dashboard failed", "error", err.Error())
+		return mcp.NewToolResultError("Rate limit dashboard failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"requests_this_minute": status.RequestsThisMinute,
+		"requests_this_hour":   status.RequestsThisHour,
+		"requests_today":       status.RequestsToday,
+		"remaining_budget":     status.RemainingBudget,
+		"status":               status.Status,
+		"duration_ms":          time.Since(start).Milliseconds(),
+	}
+	return ns.jsonResult(resp)
+}
+
+func (ns *NegotiationServer) handleLogAPIRequest(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	start := time.Now()
+
+	apiKeyID, _ := req.RequireString("api_key_id")
+	endpoint, _ := req.RequireString("endpoint")
+
+	ns.logger.Debug("negotiate_log_api_request called", "api_key_id", apiKeyID, "endpoint", endpoint)
+
+	entry, err := ns.rateLimitDashEng.Store().LogRequest(ctx, apiKeyID, endpoint)
+	if err != nil {
+		ns.logger.Warn("negotiate_log_api_request failed", "error", err.Error())
+		return mcp.NewToolResultError("Log API request failed: " + err.Error()), nil
+	}
+
+	resp := map[string]any{
+		"id":         entry.ID,
+		"api_key_id": entry.APIKeyID,
+		"endpoint":   entry.Endpoint,
+		"timestamp":  entry.Timestamp,
 		"duration_ms": time.Since(start).Milliseconds(),
 	}
 	return ns.jsonResult(resp)
